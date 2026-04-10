@@ -15,7 +15,8 @@ const FLOW_SCREENS: ScreenId[] = [
   'disappointment',
   'returnChoice',
   'comparison',
-  'bonus'
+  'bonus',
+  'basketball'
 ];
 
 const TOTAL = FLOW_SCREENS.length;

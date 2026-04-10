@@ -12,6 +12,7 @@ import DisappointmentScreen from './screens/DisappointmentScreen';
 import ReturnChoiceScreen from './screens/ReturnChoiceScreen';
 import ComparisonScreen from './screens/ComparisonScreen';
 import BonusScreen from './screens/BonusScreen';
+import BasketballScreen from './screens/BasketballScreen';
 import GeneratingScreen from './screens/GeneratingScreen';
 import ReviewScreen from './screens/ReviewScreen';
 
@@ -33,6 +34,7 @@ export default function App() {
         {current === 'returnChoice' && <ReturnChoiceScreen key="returnChoice" />}
         {current === 'comparison' && <ComparisonScreen key="comparison" />}
         {current === 'bonus' && <BonusScreen key="bonus" />}
+        {current === 'basketball' && <BasketballScreen key="basketball" />}
         {current === 'generating' && <GeneratingScreen key="generating" />}
         {current === 'review' && <ReviewScreen key="review" />}
       </AnimatePresence>

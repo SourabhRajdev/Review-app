@@ -150,7 +150,7 @@ export default function BonusScreen() {
           if (!canContinue) return;
           audio.tap();
           haptics.press();
-          go('generating');
+          go('basketball');
         }}
         disabled={!canContinue}
         className="mb-8"

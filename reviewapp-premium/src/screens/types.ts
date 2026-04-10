@@ -11,5 +11,6 @@ export type ScreenId =
   | 'returnChoice'
   | 'comparison'
   | 'bonus'
+  | 'basketball'
   | 'generating'
   | 'review';
