@@ -26,18 +26,19 @@ const OPTIONS = [
   { id: 'not_sure', label: 'Not sure yet', color: '#A78BFA' }
 ];
 
-type Phase = 'question' | 'game' | 'reward';
+type Phase = 'question' | 'game' | 'reward' | 'missed';
 
 // --- CANVAS CONSTANTS ---
 
 const CANVAS_W = 360;
 const CANVAS_H = 540;
 const HOOP_X = CANVAS_W / 2;
-const HOOP_Y = 120;
-const HOOP_WIDTH = 76;
-const BALL_RADIUS = 20;
-const GRAVITY = 0.35;
+const HOOP_Y = 130;
+const HOOP_WIDTH = 80;
+const BALL_RADIUS = 26;
+const GRAVITY = 0.25;
 const MAX_ATTEMPTS = 5; // auto-score after this many misses
+const AIM_ASSIST = 0.45; // blend factor toward ideal trajectory (0 = none, 1 = auto-aim)
 
 // --- OPTION CARD ---
 
@@ -72,7 +73,7 @@ function OptionCard({
 
 // --- CANVAS BASKETBALL GAME ---
 
-function BasketballGame({ onScore }: { onScore: () => void }) {
+function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMissedAll: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef(0);
   const scoredRef = useRef(false);
@@ -100,13 +101,16 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
     ballImg.current = img;
   }, []);
 
+  // Trail positions for arc visualization
+  const trail = useRef<{ x: number; y: number }[]>([]);
+
   const resetBall = useCallback(() => {
-    const xOff = attemptsRef.current === 0 ? 0 : (Math.random() - 0.5) * 140;
-    bx.current = CANVAS_W / 2 + xOff;
+    bx.current = CANVAS_W / 2;
     by.current = CANVAS_H - 80;
     bvx.current = 0;
     bvy.current = 0;
     launched.current = false;
+    trail.current = [];
   }, []);
 
   // --- GAME LOOP ---
@@ -128,53 +132,55 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
         bvy.current += GRAVITY;
 
         // Cap max velocity so ball can't teleport past hoop
-        const maxV = 14;
-        if (bvy.current > maxV) bvy.current = maxV;
-        if (bvy.current < -maxV) bvy.current = -maxV;
-        if (bvx.current > maxV) bvx.current = maxV;
-        if (bvx.current < -maxV) bvx.current = -maxV;
+        const maxV = 18;
+        bvy.current = Math.max(-maxV, Math.min(maxV, bvy.current));
+        bvx.current = Math.max(-maxV, Math.min(maxV, bvx.current));
 
         const prevY = by.current;
         bx.current += bvx.current;
         by.current += bvy.current;
 
-        // --- Rim collision ---
-        const rimR = BALL_RADIUS + 5;
-        // Left rim point
-        const dlx = bx.current - leftRimX;
-        const dly = by.current - HOOP_Y;
-        const distL = Math.sqrt(dlx * dlx + dly * dly);
-        if (distL < rimR) {
-          // Push ball out
-          const nx = dlx / distL;
-          const ny = dly / distL;
-          bx.current = leftRimX + nx * rimR;
-          by.current = HOOP_Y + ny * rimR;
-          // Reflect velocity
-          const dot = bvx.current * nx + bvy.current * ny;
-          bvx.current -= 2 * dot * nx * 0.6;
-          bvy.current -= 2 * dot * ny * 0.6;
-        }
-        // Right rim point
-        const drx = bx.current - rightRimX;
-        const dry = by.current - HOOP_Y;
-        const distR = Math.sqrt(drx * drx + dry * dry);
-        if (distR < rimR) {
-          const nx = drx / distR;
-          const ny = dry / distR;
-          bx.current = rightRimX + nx * rimR;
-          by.current = HOOP_Y + ny * rimR;
-          const dot = bvx.current * nx + bvy.current * ny;
-          bvx.current -= 2 * dot * nx * 0.6;
-          bvy.current -= 2 * dot * ny * 0.6;
+        // --- Rim collision (only when ball is near hoop height) ---
+        if (Math.abs(by.current - HOOP_Y) < BALL_RADIUS + 12) {
+          const rimR = BALL_RADIUS + 4;
+          // Left rim
+          const dlx = bx.current - leftRimX;
+          const dly = by.current - HOOP_Y;
+          const distL = Math.sqrt(dlx * dlx + dly * dly);
+          if (distL < rimR && distL > 0) {
+            const nx = dlx / distL;
+            const ny = dly / distL;
+            bx.current = leftRimX + nx * rimR;
+            by.current = HOOP_Y + ny * rimR;
+            const dot = bvx.current * nx + bvy.current * ny;
+            bvx.current -= 1.6 * dot * nx * 0.5;
+            bvy.current -= 1.6 * dot * ny * 0.5;
+            // Nudge ball inward (toward hoop center) on rim hits
+            bvx.current += 0.8;
+          }
+          // Right rim
+          const drx = bx.current - rightRimX;
+          const dry = by.current - HOOP_Y;
+          const distR = Math.sqrt(drx * drx + dry * dry);
+          if (distR < rimR && distR > 0) {
+            const nx = drx / distR;
+            const ny = dry / distR;
+            bx.current = rightRimX + nx * rimR;
+            by.current = HOOP_Y + ny * rimR;
+            const dot = bvx.current * nx + bvy.current * ny;
+            bvx.current -= 1.6 * dot * nx * 0.5;
+            bvy.current -= 1.6 * dot * ny * 0.5;
+            // Nudge ball inward
+            bvx.current -= 0.8;
+          }
         }
 
-        // --- Score detection (swept: check if ball crossed HOOP_Y going downward) ---
+        // --- Score detection (swept: ball crossed HOOP_Y going downward, between rims) ---
         if (
-          prevY <= HOOP_Y &&
-          by.current > HOOP_Y &&
-          bx.current > leftRimX + 6 &&
-          bx.current < rightRimX - 6
+          prevY <= HOOP_Y + 5 &&
+          by.current > HOOP_Y + 5 &&
+          bx.current > leftRimX + 4 &&
+          bx.current < rightRimX - 4
         ) {
           scoredRef.current = true;
           haptics.impact();
@@ -191,14 +197,19 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
           bvx.current = -Math.abs(bvx.current) * 0.5;
         }
 
+        // --- Trail tracking ---
+        if (launched.current) {
+          trail.current.push({ x: bx.current, y: by.current });
+          if (trail.current.length > 12) trail.current.shift();
+        }
+
         // --- Ball off screen (miss) ---
         if (by.current > CANVAS_H + 50) {
           attemptsRef.current++;
-          // Auto-score after MAX_ATTEMPTS misses so user isn't stuck
+          // All attempts used — no offer, move on
           if (attemptsRef.current >= MAX_ATTEMPTS) {
             scoredRef.current = true;
-            haptics.impact();
-            setTimeout(() => onScore(), 200);
+            setTimeout(() => onMissedAll(), 200);
           } else {
             resetBall();
           }
@@ -245,6 +256,30 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
         ctx.moveTo(leftRimX + shrink, ry);
         ctx.lineTo(rightRimX - shrink, ry);
         ctx.stroke();
+      }
+
+      // Ball trail (fading circles)
+      if (launched.current && trail.current.length > 1) {
+        for (let i = 0; i < trail.current.length; i++) {
+          const t = trail.current[i];
+          const alpha = (i / trail.current.length) * 0.25;
+          const size = BALL_RADIUS * (0.3 + (i / trail.current.length) * 0.5);
+          ctx.fillStyle = `rgba(198, 124, 78, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Ball shadow on ground
+      if (!scoredRef.current) {
+        const shadowY = CANVAS_H - 30;
+        const heightRatio = Math.max(0, 1 - (shadowY - by.current) / (CANVAS_H - 100));
+        const shadowW = BALL_RADIUS * (0.5 + heightRatio * 0.8);
+        ctx.fillStyle = `rgba(60, 36, 21, ${0.08 + heightRatio * 0.07})`;
+        ctx.beginPath();
+        ctx.ellipse(bx.current, shadowY, shadowW, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // Ball
@@ -341,7 +376,7 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
 
     tick();
     return () => { running = false; cancelAnimationFrame(animRef.current); };
-  }, [onScore, resetBall]);
+  }, [onScore, onMissedAll, resetBall]);
 
   // --- INPUT HANDLING ---
   const getPos = (e: React.TouchEvent | React.MouseEvent) => {
@@ -392,13 +427,44 @@ function BasketballGame({ onScore }: { onScore: () => void }) {
     if (dy < -15) {
       launched.current = true;
 
-      // Calculate velocity — aim toward hoop area
-      // Horizontal: proportional to swipe horizontal offset
-      bvx.current = -dx * 0.18;
-      // Vertical: proportional to swipe distance, but capped
-      bvy.current = Math.max(dy * 0.22, -13);
+      // --- Physics-based launch ---
+      // We need the ball to arc up and come back down through the hoop.
+      // Calculate the ideal trajectory to reach the hoop, then blend
+      // the user's swipe direction with aim-assist.
+
+      const distY = by.current - HOOP_Y; // vertical distance to hoop (positive = hoop is above)
+      const distX = HOOP_X - bx.current; // horizontal distance to hoop center
+
+      // Swipe strength (how far they swiped upward)
+      const swipeLen = Math.sqrt(dx * dx + dy * dy);
+      const power = Math.min(swipeLen / 120, 1); // 0..1 normalized power
+
+      // Ideal vy to reach ~40px above the hoop (nice arc)
+      // Using v² = 2*g*h → v = sqrt(2*g*h)
+      const arcHeight = distY + 40 + power * 30; // overshoot for arc
+      const idealVy = -Math.sqrt(2 * GRAVITY * Math.max(arcHeight, 80));
+
+      // Time to reach hoop height on the way down
+      // y = vy*t + 0.5*g*t² → solve for when y = -distY
+      // Using the full parabola, time ≈ -2*vy/g (total flight time to same height)
+      const flightTime = -2 * idealVy / GRAVITY;
+      // Ideal vx to arrive at hoop center in that time
+      const idealVx = distX / (flightTime * 0.52); // 0.52 = ball arrives just past apex
+
+      // User's intended direction from swipe
+      const userVx = -dx * 0.12;
+      const userVy = Math.max(dy * 0.28, -16);
+
+      // Blend user input with aim-assist
+      bvx.current = userVx * (1 - AIM_ASSIST) + idealVx * AIM_ASSIST;
+      bvy.current = userVy * (1 - AIM_ASSIST) + idealVy * AIM_ASSIST;
+
+      // Add slight randomness so it doesn't feel robotic
+      bvx.current += (Math.random() - 0.5) * 1.5;
+      bvy.current += (Math.random() - 0.5) * 0.8;
+
       // Ensure minimum upward speed
-      if (bvy.current > -5) bvy.current = -5;
+      if (bvy.current > -8) bvy.current = -8;
 
       audio.tap();
       haptics.press();
@@ -603,6 +669,10 @@ export default function BasketballScreen() {
     setTimeout(() => setPhase('reward'), 600);
   }
 
+  function handleMissedAll() {
+    setTimeout(() => setPhase('missed'), 400);
+  }
+
   function handleContinue() {
     audio.tap();
     haptics.press();
@@ -693,7 +763,7 @@ export default function BasketballScreen() {
               Sink it for your offer!
             </motion.h2>
 
-            <BasketballGame onScore={handleScore} />
+            <BasketballGame onScore={handleScore} onMissedAll={handleMissedAll} />
           </motion.div>
         )}
 
@@ -707,6 +777,55 @@ export default function BasketballScreen() {
             exit={{ opacity: 0 }}
           >
             <DiscountReveal discount={discount} onContinue={handleContinue} />
+          </motion.div>
+        )}
+
+        {/* --- PHASE 4: MISSED ALL --- */}
+        {phase === 'missed' && (
+          <motion.div
+            key="missed"
+            className="flex-1 flex flex-col justify-center items-center text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="w-24 h-24 rounded-full bg-surface-sunken flex items-center justify-center mb-5"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={spring.bouncy}
+            >
+              <img src="/basketball/ball.png" alt="" className="w-14 h-14 opacity-50" />
+            </motion.div>
+
+            <motion.h2
+              className="text-[26px] font-bold font-display text-ink mb-2"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              Better luck next time!
+            </motion.h2>
+
+            <motion.p
+              className="text-ink-muted text-[15px] mb-8 max-w-[280px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.4 }}
+            >
+              No worries — let's finish up your review.
+            </motion.p>
+
+            <motion.button
+              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              whileTap={tapScale.whileTap}
+              onClick={handleContinue}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+            >
+              Continue to Review
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
