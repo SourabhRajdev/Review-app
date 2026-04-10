@@ -54,10 +54,10 @@ const COMPARISON_MAP: Record<string, string> = {
   'Unique, nothing like it nearby': 'unique_nothing_like_it'
 };
 const SENSORY_LABEL_MAP: Record<string, string> = {
-  'Hot': 'hot_fresh', 'Fresh': 'hot_fresh', 'Crispy': 'crispy_flaky',
-  'Creamy': 'rich_creamy', 'Rich': 'rich_creamy', 'Perfectly sweet': 'perfectly_sweet',
-  'A little bland': 'slightly_bland', 'Could be hotter': 'could_be_hotter',
-  'Portion was small': 'portion_small', 'Looked amazing': 'looked_amazing'
+  'Hot': 'hot and fresh', 'Fresh': 'fresh', 'Crispy': 'crispy and flaky',
+  'Creamy': 'rich and creamy', 'Rich': 'rich', 'Perfectly sweet': 'perfectly sweet',
+  'A little bland': 'slightly bland', 'Could be hotter': 'could be hotter',
+  'Portion was small': 'portion was small', 'Looked amazing': 'looked amazing'
 };
 
 // Animated pen/pencil writing icon
