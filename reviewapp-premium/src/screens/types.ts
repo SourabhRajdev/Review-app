@@ -1,0 +1,15 @@
+export type ScreenId =
+  | 'entry'
+  | 'voiceEntry'
+  | 'transcriptReview'
+  | 'visitType'
+  | 'occasion'
+  | 'menu'
+  | 'sensoryChips'
+  | 'experienceChoice'
+  | 'disappointment'
+  | 'returnChoice'
+  | 'comparison'
+  | 'bonus'
+  | 'generating'
+  | 'review';
