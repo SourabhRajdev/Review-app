@@ -222,9 +222,8 @@ export default function GeneratingScreen() {
 
   async function handleVoiceGeneration() {
     try {
-      const apiBase = new URLSearchParams(location.search).get('api') || 'http://localhost:3000';
       const params = new URLSearchParams(location.search);
-      const response = await fetch(`${apiBase}/api/voice-generate`, {
+      const response = await fetch(`/api/voice-generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -264,9 +263,7 @@ export default function GeneratingScreen() {
       recommend_for: choice.recommendFor || 'quick_break'
     };
 
-    const apiBase = new URLSearchParams(location.search).get('api') || 'http://localhost:3000';
-
-    fetch(`${apiBase}/api/generate`, {
+    fetch(`/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
