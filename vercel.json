@@ -4,15 +4,11 @@
   "installCommand": "cd reviewapp-premium && npm install",
   "framework": null,
   "functions": {
-    "reviewapp-premium/api/**/*.ts": {
+    "api/**/*.ts": {
       "includeFiles": "reviewapp-premium/src/architecture/REVIEW_GENERATION_GUIDE.md"
     }
   },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/reviewapp-premium/api/$1"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
