@@ -338,11 +338,11 @@ function buildSignalsJson(signals) {
     visit_type:          signals.visit_type || null,
     occasion:            signals.occasion || null,
     items_ordered:       signals.items_ordered || [],
-    product_sentiment:   signals.dart_score || null,
+    product_sentiment:   signals.product_sentiment || signals.dart_score || null,
     sensory_chips:       signals.sensory_chips || [],
-    overall_score:       signals.bowling_pin_count ?? null,
+    overall_score:       signals.overall_score ?? signals.bowling_pin_count ?? null,
     disappointment_chip: signals.disappointment_chip || 'nothing_perfect',
-    return_intent:       signals.putt_power_label || null,
+    return_intent:       signals.return_intent || signals.putt_power_label || null,
     comparison_chip:     signals.comparison_chip || null,
     vibe_chips:          signals.vibe_chips || [],
     recommend_for:       signals.recommend_for || null
@@ -576,7 +576,7 @@ function localFallbackReview(s) {
   const item = (s.items_ordered && s.items_ordered[0]) || 'what we ordered';
   const sensory = (s.sensory_chips || []).slice(0, 2).join(' and ') || 'fresh and well-made';
   const comp = s.comparison_chip || 'better_than_usual';
-  const returnIntent = s.putt_power_label || 'definitely';
+  const returnIntent = s.return_intent || s.putt_power_label || 'definitely';
 
   // Sentence 1 — THE ANCHOR: business + neighbourhood + occasion
   const occasion = s.occasion

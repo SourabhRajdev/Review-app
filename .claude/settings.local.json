@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(curl -s -X POST http://localhost:3000/api/generate -H 'Content-Type: application/json' -d '{:*)",
-      "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);console.log\\(j.review\\);console.log\\('[model:',j.model,']'\\)}catch\\(e\\){console.log\\(d\\)}}\\)\")"
+      "Bash(node -e \"process.stdin.resume\\(\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{try{const j=JSON.parse\\(d\\);console.log\\(j.review\\);console.log\\('[model:',j.model,']'\\)}catch\\(e\\){console.log\\(d\\)}}\\)\")",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(echo \"EXIT: $?\")",
+      "mcp__magic__21st_magic_component_inspiration",
+      "Bash(./node_modules/.bin/tsc -b)",
+      "Bash(./node_modules/.bin/vite build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(/Users/sourabhrajdev/Desktop/reviewapp/reviewapp-premium/node_modules/.bin/tsc --noEmit --pretty false)",
+      "Bash(/Users/sourabhrajdev/Desktop/reviewapp/reviewapp-premium/node_modules/.bin/vite build:*)"
     ]
   }
 }

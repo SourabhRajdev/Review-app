@@ -132,5 +132,29 @@ export const audio = {
   bullseye() {
     tone('triangle', 1320, 0.4, 0.2);
     tone('triangle', 1980, 0.3, 0.1);
+  },
+  /** Crispy slice — high filtered noise burst, short. */
+  slice() {
+    noiseBurst(0.05, 0.18, 6000);
+    sweep(2200, 600, 0.07, 0.1);
+  },
+  /** Solid thud — low sine + dampened noise. Use on landings. */
+  thud() {
+    tone('sine', 110, 0.14, 0.32);
+    noiseBurst(0.06, 0.1, 600);
+  },
+  /** Bright two-tone chime — perfect / clean hit. */
+  perfect() {
+    tone('triangle', 1568, 0.18, 0.18); // G6
+    tone('triangle', 2349, 0.22, 0.12); // D7
+  },
+  /** Dull penalty thud. Use on misses / wrong slices. */
+  miss() {
+    tone('sine', 70, 0.18, 0.22);
+    noiseBurst(0.08, 0.06, 400);
+  },
+  /** Combo confirmation — short rising blip. */
+  combo() {
+    sweep(620, 1240, 0.1, 0.12);
   }
 };

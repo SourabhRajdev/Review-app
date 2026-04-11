@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__magic__21st_magic_component_inspiration",
+      "Bash(npx tsc:*)",
+      "WebSearch",
+      "WebFetch(domain:help.slice.bank.in)",
+      "Read(//private/tmp/darts_ref/**)",
+      "Read(//private/tmp/tower_ref/**)",
+      "Bash(wc:*)"
+    ]
+  }
+}

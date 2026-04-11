@@ -11,7 +11,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
-import { spring, tapScale, staggerContainer, staggerItem } from '@/design/motion';
+import { useGameStore } from '@/architecture/game/store';
+import { spring, tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
@@ -51,8 +52,7 @@ function OptionCard({
 }) {
   return (
     <motion.button
-      className="glass-card shadow-card rounded-2xl p-4 cursor-pointer hover:shadow-card-warm transition-shadow duration-200 flex flex-col items-center gap-2 text-center"
-      variants={staggerItem}
+      className="bg-surface border border-ink/5 shadow-card rounded-2xl p-4 cursor-pointer hover:shadow-elevated transition-shadow duration-200 flex flex-col items-center gap-2 text-center"
       whileTap={tapScale.whileTap}
       onClick={() => onPick(opt.id)}
     >
@@ -61,9 +61,15 @@ function OptionCard({
         style={{ backgroundColor: `${opt.color}15` }}
       >
         <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-          <rect x="14" y="6" width="20" height="14" rx="2" fill={opt.color} opacity="0.3" />
-          <ellipse cx="24" cy="24" rx="8" ry="3" stroke={opt.color} strokeWidth="2.5" fill="none" />
-          <path d="M16 24 L20 36 L24 30 L28 36 L32 24" stroke={opt.color} strokeWidth="1.5" fill="none" opacity="0.5" />
+          {/* Backboard */}
+          <rect x="6" y="8" width="36" height="16" rx="3" fill={opt.color} opacity="0.15" stroke={opt.color} strokeWidth="1.5" />
+          {/* Rim (ellipse) */}
+          <ellipse cx="24" cy="28" rx="16" ry="4" fill={opt.color} opacity="0.4" />
+          <ellipse cx="24" cy="28" rx="16" ry="4" stroke={opt.color} strokeWidth="2" fill="none" />
+          {/* Net lines */}
+          <path d="M10 28 L12 40 M16 28 L17 40 M20 28 L21 40 M24 28 L24 40 M28 28 L27 40 M32 28 L31 40 M38 28 L36 40" stroke={opt.color} strokeWidth="1" opacity="0.4" />
+          {/* Net horizontal lines */}
+          <path d="M10 32 L38 32 M11 36 L37 36" stroke={opt.color} strokeWidth="0.8" opacity="0.3" />
         </svg>
       </div>
       <span className="text-[14px] font-semibold text-ink leading-tight">{opt.label}</span>
@@ -157,6 +163,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
             bvy.current -= 1.6 * dot * ny * 0.5;
             // Nudge ball inward (toward hoop center) on rim hits
             bvx.current += 0.8;
+            // Rim clang — short metallic feel
+            audio.tick();
+            haptics.tick();
           }
           // Right rim
           const drx = bx.current - rightRimX;
@@ -172,6 +181,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
             bvy.current -= 1.6 * dot * ny * 0.5;
             // Nudge ball inward
             bvx.current -= 0.8;
+            // Rim clang — short metallic feel
+            audio.tick();
+            haptics.tick();
           }
         }
 
@@ -183,7 +195,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
           bx.current < rightRimX - 4
         ) {
           scoredRef.current = true;
-          haptics.impact();
+          // Swish — bright bell + jackpot haptic
+          audio.bullseye();
+          haptics.jackpot();
           setTimeout(() => onScore(), 500);
         }
 
@@ -206,6 +220,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         // --- Ball off screen (miss) ---
         if (by.current > CANVAS_H + 50) {
           attemptsRef.current++;
+          // Penalty thud per miss — only fire once per off-screen
+          audio.miss();
+          haptics.miss();
           // All attempts used — no offer, move on
           if (attemptsRef.current >= MAX_ATTEMPTS) {
             scoredRef.current = true;
@@ -404,15 +421,27 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       dragStartY.current = pos.y;
       dragCurX.current = pos.x;
       dragCurY.current = pos.y;
+      // Pickup feedback — user grabbed the ball
+      audio.tick();
+      haptics.tick();
     }
   };
 
+  // Throttle the drag-buzz so we don't spam vibrate() every frame
+  const lastDragHapticAt = useRef(0);
   const onMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!dragging.current) return;
     e.preventDefault();
     const pos = getPos(e);
     dragCurX.current = pos.x;
     dragCurY.current = pos.y;
+    // Pulse a tiny haptic ~every 90ms while pulling back — feels like
+    // resistance building under the thumb.
+    const now = performance.now();
+    if (now - lastDragHapticAt.current > 90) {
+      lastDragHapticAt.current = now;
+      haptics.drag();
+    }
   };
 
   const onUp = () => {
@@ -466,8 +495,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       // Ensure minimum upward speed
       if (bvy.current > -8) bvy.current = -8;
 
-      audio.tap();
-      haptics.press();
+      // Release — sweep + heavy land feel as the ball leaves the hand
+      audio.release();
+      haptics.land();
     }
   };
 
@@ -482,7 +512,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         ref={canvasRef}
         width={CANVAS_W}
         height={CANVAS_H}
-        className="rounded-2xl bg-white/60 border border-ink-ghost/10 shadow-card"
+        className="rounded-2xl bg-white/60 border border-ink/5 shadow-card"
         style={{ touchAction: 'none', width: '100%', maxWidth: 360 }}
         onMouseDown={onDown}
         onMouseMove={onMove}
@@ -561,58 +591,38 @@ function DiscountReveal({ discount, onContinue }: { discount: number; onContinue
         className="flex flex-col items-center text-center"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={spring.bouncy}
+        transition={spring.gentle}
       >
         {/* Celebration burst */}
         <motion.div
           className="relative w-32 h-32 mb-4"
-          animate={{ rotate: [0, 5, -5, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
         >
-          {/* Glow ring */}
-          <motion.div
-            className="absolute inset-[-20px] rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(245,158,11,0.25) 0%, transparent 70%)' }}
-            animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0.8, 0.4] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
           {/* Basketball icon */}
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="flex items-center justify-center">
             <motion.div
-              initial={{ scale: 0, rotate: -180 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ ...spring.bouncy, delay: 0.2 }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ ...spring.gentle, delay: 0.2 }}
             >
               <img src="/basketball/ball.png" alt="" className="w-20 h-20" />
             </motion.div>
           </div>
         </motion.div>
 
-        <motion.h2
-          className="text-[30px] font-bold font-display text-ink mb-2"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
+        <h2 className="text-[30px] font-bold text-ink mb-2">
           Nice shot!
-        </motion.h2>
+        </h2>
 
         {/* Discount card */}
         <motion.div
-          className="w-full max-w-[300px] rounded-3xl bg-gradient-brand p-7 shadow-glow mb-5 relative overflow-hidden"
+          className="w-full max-w-[300px] rounded-3xl bg-primary p-7 shadow-elevated mb-5 relative overflow-hidden"
           initial={{ opacity: 0, y: 30, scale: 0.8 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ ...spring.bouncy, delay: 0.5 }}
+          transition={{ ...spring.gentle, delay: 0.5 }}
         >
-          {/* Shimmer overlay */}
-          <motion.div
-            className="absolute inset-0 bg-shimmer bg-[length:200%_100%] opacity-30"
-            animate={{ backgroundPosition: ['-200% 0', '200% 0'] }}
-            transition={{ repeat: Infinity, duration: 2.5, ease: 'linear' }}
-          />
           <p className="text-white/80 text-[15px] font-medium mb-1 relative z-10">You won</p>
           <motion.p
-            className="text-white text-[52px] font-bold font-display leading-none relative z-10"
+            className="text-white text-[52px] font-bold leading-none relative z-10"
             initial={{ scale: 0 }}
             animate={{ scale: [0, 1.3, 1] }}
             transition={{ delay: 0.7, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -623,7 +633,7 @@ function DiscountReveal({ discount, onContinue }: { discount: number; onContinue
         </motion.div>
 
         <motion.p
-          className="text-ink-muted text-[14px] mb-6 max-w-[280px]"
+          className="text-ink/60 text-[14px] mb-6 max-w-[280px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.9 }}
@@ -632,7 +642,7 @@ function DiscountReveal({ discount, onContinue }: { discount: number; onContinue
         </motion.p>
 
         <motion.button
-          className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+          className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
           whileTap={tapScale.whileTap}
           onClick={onContinue}
           initial={{ opacity: 0, y: 12 }}
@@ -650,6 +660,7 @@ function DiscountReveal({ discount, onContinue }: { discount: number; onContinue
 
 export default function BasketballScreen() {
   const go = useNavigation((s) => s.go);
+  const setBasketballAnswer = useGameStore((s) => s.setBasketballAnswer);
   const [phase, setPhase] = useState<Phase>('question');
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [discount, setDiscount] = useState(0);
@@ -664,12 +675,26 @@ export default function BasketballScreen() {
   function handleScore() {
     const randomDiscount = Math.floor(Math.random() * 10) + 1;
     setDiscount(randomDiscount);
+    setBasketballAnswer({
+      questionId: 'recommend',
+      question: QUESTION,
+      selectedOption: selectedOption || '',
+      scored: true,
+      discount: randomDiscount,
+    });
     audio.bullseye();
     haptics.impact();
     setTimeout(() => setPhase('reward'), 600);
   }
 
   function handleMissedAll() {
+    setBasketballAnswer({
+      questionId: 'recommend',
+      question: QUESTION,
+      selectedOption: selectedOption || '',
+      scored: false,
+      discount: 0,
+    });
     setTimeout(() => setPhase('missed'), 400);
   }
 
@@ -702,7 +727,7 @@ export default function BasketballScreen() {
                 className="w-16 h-16 rounded-2xl bg-accent-amber/10 flex items-center justify-center mx-auto mb-4"
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={spring.bouncy}
+                transition={spring.snappy}
               >
                 <img src="/basketball/ball.png" alt="" className="w-9 h-9" />
               </motion.div>
@@ -714,25 +739,15 @@ export default function BasketballScreen() {
               </p>
             </motion.div>
 
-            <motion.p
-              className="text-[18px] font-semibold text-ink text-center mb-6"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-            >
+            <p className="text-[18px] font-semibold text-ink text-center mb-6">
               {QUESTION}
-            </motion.p>
+            </p>
 
-            <motion.div
-              className="grid grid-cols-2 gap-3 w-full max-w-[360px] mx-auto"
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-            >
+            <div className="grid grid-cols-2 gap-3 w-full max-w-[360px] mx-auto">
               {OPTIONS.map((opt) => (
                 <OptionCard key={opt.id} opt={opt} onPick={handlePickOption} />
               ))}
-            </motion.div>
+            </div>
           </motion.div>
         )}
 
@@ -747,11 +762,11 @@ export default function BasketballScreen() {
             transition={{ duration: 0.3 }}
           >
             <motion.p
-              className="text-[14px] font-medium text-ink-muted mb-2 text-center"
+              className="text-[14px] font-medium text-ink/60 mb-2 text-center"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
             >
-              You picked: <span className="text-brand font-semibold">{OPTIONS.find((o) => o.id === selectedOption)?.label}</span>
+              You picked: <span className="text-primary font-semibold">{OPTIONS.find((o) => o.id === selectedOption)?.label}</span>
             </motion.p>
 
             <motion.h2
@@ -790,10 +805,10 @@ export default function BasketballScreen() {
             exit={{ opacity: 0 }}
           >
             <motion.div
-              className="w-24 h-24 rounded-full bg-surface-sunken flex items-center justify-center mb-5"
+              className="w-24 h-24 rounded-full bg-surface flex items-center justify-center mb-5"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={spring.bouncy}
+              transition={spring.snappy}
             >
               <img src="/basketball/ball.png" alt="" className="w-14 h-14 opacity-50" />
             </motion.div>
@@ -817,7 +832,7 @@ export default function BasketballScreen() {
             </motion.p>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={handleContinue}
               initial={{ opacity: 0, y: 12 }}

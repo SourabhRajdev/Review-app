@@ -1,68 +1,36 @@
-// Segmented progress bar — shows how far through the review flow the user is.
-// Appears at the top of every screen except entry and review.
-
-import { motion } from 'framer-motion';
-import { spring } from '@/design/motion';
 import type { ScreenId } from '@/screens/types';
 
-// Ordered flow for progress calculation (excludes entry, voice path, generating, review)
-const FLOW_SCREENS: ScreenId[] = [
-  'visitType',
-  'occasion',
-  'menu',
-  'sensoryChips',
-  'experienceChoice',
-  'disappointment',
-  'returnChoice',
-  'comparison',
-  'bonus',
-  'basketball'
-];
-
-const TOTAL = FLOW_SCREENS.length;
+const EASY_FLOW: ScreenId[] = ['swipeGame', 'conveyorBelt', 'bubblePop', 'vibeGame', 'serviceGame', 'slingshotGame'];
+const HARD_FLOW: ScreenId[] = ['darts', 'stackTower', 'sparkSlice', 'basketball'];
 
 interface Props {
   current: ScreenId;
 }
 
 export default function ProgressBar({ current }: Props) {
-  const idx = FLOW_SCREENS.indexOf(current);
+  let flow = EASY_FLOW;
+  if (HARD_FLOW.includes(current)) flow = HARD_FLOW;
+  else if (!EASY_FLOW.includes(current)) return null;
+
+  const idx = flow.indexOf(current);
   if (idx === -1) return null;
+  const total = flow.length;
 
   return (
-    <div className="w-full px-1">
+    <div className="w-full mt-1">
       <div className="flex gap-1">
-        {FLOW_SCREENS.map((screen, i) => (
-          <motion.div
-            key={screen}
-            className="h-[3px] flex-1 rounded-full overflow-hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: i * 0.03 }}
-          >
-            <motion.div
-              className="h-full rounded-full"
-              initial={{ width: 0 }}
-              animate={{
-                width: i <= idx ? '100%' : '0%',
-                backgroundColor: i <= idx ? '#C67C4E' : 'transparent'
-              }}
-              transition={{ ...spring.snappy, delay: i * 0.02 }}
-              style={{
-                backgroundColor: i <= idx ? '#C67C4E' : 'rgba(60,36,21,0.08)'
-              }}
-            />
-          </motion.div>
+        {flow.map((_, i) => (
+          <div
+            key={i}
+            className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+              i <= idx ? 'bg-primary' : 'bg-ink-ghost/30'
+            }`}
+          />
         ))}
       </div>
-      <motion.p
-        className="text-[11px] text-ink-quiet font-medium mt-2 text-right tabular-nums"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
-      >
-        {idx + 1} of {TOTAL}
-      </motion.p>
+      <p className="text-micro text-ink-tertiary mt-1.5 text-right tabular-nums">
+        {idx + 1} of {total}
+      </p>
     </div>
   );
 }

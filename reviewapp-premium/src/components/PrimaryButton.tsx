@@ -1,32 +1,41 @@
-// Warm gradient primary CTA button used across all screens.
-
 import { motion } from 'framer-motion';
-import { spring, tapScale } from '@/design/motion';
+import { tapScale } from '@/design/motion';
 
 interface Props {
   children: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  variant?: 'primary' | 'secondary' | 'ghost';
   className?: string;
 }
 
-export default function PrimaryButton({ children, onClick, disabled = false, className = '' }: Props) {
+export default function PrimaryButton({
+  children,
+  onClick,
+  disabled = false,
+  variant = 'primary',
+  className = '',
+}: Props) {
+  const base = 'w-full rounded-button px-6 py-3.5 text-button cursor-pointer transition-colors duration-150';
+
+  const variants = {
+    primary: disabled
+      ? 'bg-ink-ghost text-ink-tertiary pointer-events-none'
+      : 'bg-primary text-white active:bg-primary-light',
+    secondary: disabled
+      ? 'bg-surface-secondary text-ink-tertiary pointer-events-none'
+      : 'bg-surface border border-ink-ghost text-ink active:bg-surface-secondary',
+    ghost: disabled
+      ? 'text-ink-tertiary pointer-events-none'
+      : 'text-ink-secondary active:text-ink',
+  };
+
   return (
     <motion.button
-      className={`
-        w-full rounded-2xl px-8 py-[18px] text-[17px] font-semibold text-white
-        shadow-card-lg cursor-pointer transition-all duration-200
-        ${disabled
-          ? 'bg-ink-ghost pointer-events-none'
-          : 'bg-gradient-brand hover:shadow-card-warm active:shadow-card'
-        }
-        ${className}
-      `}
+      className={`${base} ${variants[variant]} ${className}`}
       whileTap={!disabled ? tapScale.whileTap : undefined}
       onClick={onClick}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ ...spring.gentle, delay: 0.3 }}
+      disabled={disabled}
     >
       {children}
     </motion.button>

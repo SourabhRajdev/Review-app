@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Karla:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,26 +7,15 @@
 @layer base {
   :root {
     color-scheme: light;
-    /* 4px base grid */
-    --space-1: 4px;
-    --space-2: 8px;
-    --space-3: 12px;
-    --space-4: 16px;
-    --space-5: 24px;
-    --space-6: 32px;
-    --space-7: 48px;
-    --space-8: 64px;
-    --space-9: 96px;
   }
 
   html,
   body {
     margin: 0;
     padding: 0;
-    background: #FFFBF5;
-    color: #3C2415;
-    font-family: 'Karla', -apple-system, BlinkMacSystemFont, Inter,
-      system-ui, sans-serif;
+    background: #FAFAF8;
+    color: #1C1917;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -65,29 +54,11 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  /* Frosted glass — warm tint */
-  .glass {
-    background: rgba(255, 251, 245, 0.75);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    border: 1px solid rgba(60, 36, 21, 0.06);
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
-  .glass-card {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: saturate(180%) blur(16px);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    border: 1px solid rgba(198, 124, 78, 0.1);
-  }
-  /* Shimmer overlay for loading states */
-  .shimmer-overlay {
-    background-size: 200% 100%;
-    animation: shimmer 2s infinite linear;
-  }
-  /* Warm text gradient */
-  .text-gradient-warm {
-    background: linear-gradient(135deg, #C67C4E 0%, #92400E 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

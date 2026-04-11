@@ -1,103 +1,16 @@
-// ENTRY SCREEN
-// Premium hero landing. Warm gradient, animated coffee cup illustration,
-// serif heading, two CTAs. Unlocks AudioContext on first tap.
-
 import { motion } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
-import { spring, tapScale } from '@/design/motion';
+import { useGameStore } from '@/architecture/game/store';
+import PrimaryButton from '@/components/PrimaryButton';
+import { tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
-// Minimal coffee cup SVG illustration — centered with aligned steam
-function CoffeeCupIcon() {
-  return (
-    <motion.div
-      className="relative mx-auto mb-6"
-      style={{ width: 100, height: 100 }}
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ ...spring.bouncy, delay: 0.1 }}
-    >
-      <svg viewBox="0 0 100 100" fill="none" className="w-full h-full overflow-visible">
-        {/* Steam — centered above the cup body (cup center = 42) */}
-        {[0, 1, 2].map((i) => (
-          <motion.line
-            key={i}
-            x1={30 + i * 12}
-            y1={24}
-            x2={30 + i * 12}
-            y2={10}
-            stroke="#C67C4E"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeOpacity={0.25}
-            animate={{
-              y1: [24, 20, 24],
-              y2: [10, 4, 10],
-              strokeOpacity: [0.15, 0.35, 0.15]
-            }}
-            transition={{
-              duration: 2.2,
-              repeat: Infinity,
-              delay: i * 0.35,
-              ease: 'easeInOut'
-            }}
-          />
-        ))}
-
-        {/* Cup body — centered at x=42, leaving room for handle on right */}
-        <motion.rect
-          x="18" y="30" width="48" height="44" rx="8"
-          fill="#C67C4E"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ ...spring.gentle, delay: 0.2 }}
-        />
-
-        {/* Handle */}
-        <motion.path
-          d="M66 40 C78 40, 78 64, 66 64"
-          stroke="#C67C4E"
-          strokeWidth="5"
-          strokeLinecap="round"
-          fill="none"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-        />
-
-        {/* Saucer */}
-        <motion.ellipse
-          cx="42" cy="78" rx="36" ry="5"
-          fill="#E8A87C"
-          initial={{ scaleX: 0 }}
-          animate={{ scaleX: 1 }}
-          transition={{ ...spring.gentle, delay: 0.4 }}
-        />
-
-        {/* Latte art dot */}
-        <motion.circle
-          cx="42" cy="42" r="7"
-          fill="#FEF3C7"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ ...spring.bouncy, delay: 0.7 }}
-        />
-      </svg>
-    </motion.div>
-  );
-}
-
 export default function EntryScreen() {
   const go = useNavigation((s) => s.go);
-
-  function handleStart() {
-    audio.warmup();
-    audio.tap();
-    haptics.press();
-    go('visitType');
-  }
+  const setMode = useGameStore((s) => s.setMode);
+  const resetGame = useGameStore((s) => s.reset);
 
   function handleVoice() {
     audio.warmup();
@@ -106,65 +19,90 @@ export default function EntryScreen() {
     go('voiceEntry');
   }
 
+  function handleEasyMode() {
+    audio.warmup();
+    audio.tap();
+    haptics.press();
+    resetGame();
+    setMode('easy');
+    go('swipeGame');
+  }
+
+  function handleHardMode() {
+    audio.warmup();
+    audio.tap();
+    haptics.press();
+    resetGame();
+    setMode('hard');
+    go('darts');
+  }
+
   return (
-    <ScreenShell className="items-center justify-center text-center" hideProgress hideBack hero>
-      <CoffeeCupIcon />
-
-      {/* Heading — serif for warmth */}
-      <motion.h1
-        className="text-[34px] font-bold font-display tracking-tight leading-[1.1] text-ink"
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.25 }}
-      >
-        How was your visit?
-      </motion.h1>
-
-      <motion.p
-        className="mt-3 text-[16px] text-ink-muted leading-relaxed font-body"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5, delay: 0.45 }}
-      >
-        Share your experience in under a minute.
-      </motion.p>
-
-      {/* Primary CTA */}
-      <motion.button
-        className="mt-10 w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer active:shadow-card"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.6 }}
-        whileTap={tapScale.whileTap}
-        onClick={handleStart}
-      >
-        Get Started
-      </motion.button>
-
-      {/* Voice Option */}
-      <motion.button
-        className="mt-3 w-full max-w-[300px] rounded-2xl bg-white/80 border border-brand/15 px-8 py-[16px] text-[16px] font-semibold text-brand shadow-card cursor-pointer flex items-center justify-center gap-2.5"
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...spring.gentle, delay: 0.75 }}
-        whileTap={tapScale.whileTap}
-        onClick={handleVoice}
-      >
-        <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+    <ScreenShell className="items-center justify-center text-center" hideProgress hideBack>
+      {/* Icon */}
+      <div className="w-16 h-16 rounded-2xl bg-primary-muted flex items-center justify-center mb-6">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#B8622D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8h1a4 4 0 010 8h-1M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z" />
+          <path d="M6 1v3M10 1v3M14 1v3" />
         </svg>
-        Use Voice Instead
-      </motion.button>
+      </div>
 
-      {/* Subtle tagline */}
-      <motion.p
-        className="mt-8 text-[12px] text-ink-quiet"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1 }}
-      >
-        Your review helps others discover great spots
-      </motion.p>
+      <h1 className="text-display text-ink mb-2">How was your visit?</h1>
+      <p className="text-body-sm text-ink-secondary mb-8">
+        Share your experience — play games, win offers.
+      </p>
+
+      {/* Voice button */}
+      <PrimaryButton onClick={handleVoice} variant="secondary" className="max-w-[320px] mb-6">
+        <span className="flex items-center justify-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+          </svg>
+          Use Voice
+        </span>
+      </PrimaryButton>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 w-full max-w-[320px] mb-6">
+        <div className="flex-1 h-px bg-ink-ghost/30" />
+        <span className="text-micro text-ink-tertiary uppercase tracking-widest">or play for offers</span>
+        <div className="flex-1 h-px bg-ink-ghost/30" />
+      </div>
+
+      {/* Easy / Hard mode cards */}
+      <div className="w-full max-w-[320px] grid grid-cols-2 gap-3">
+        <motion.button
+          className="rounded-card bg-surface border border-ink-ghost/20 p-5 cursor-pointer text-center shadow-card hover:shadow-elevated transition-shadow duration-200"
+          whileTap={tapScale.whileTap}
+          onClick={handleEasyMode}
+        >
+          <div className="w-12 h-12 rounded-button bg-success/10 flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3H14z" />
+            </svg>
+          </div>
+          <p className="text-body-sm font-semibold text-ink mb-0.5">Easy</p>
+          <p className="text-micro text-ink-tertiary">6 quick rounds</p>
+        </motion.button>
+
+        <motion.button
+          className="rounded-card bg-surface border border-ink-ghost/20 p-5 cursor-pointer text-center shadow-card hover:shadow-elevated transition-shadow duration-200"
+          whileTap={tapScale.whileTap}
+          onClick={handleHardMode}
+        >
+          <div className="w-12 h-12 rounded-button bg-primary-muted flex items-center justify-center mx-auto mb-3">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#B8622D" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </div>
+          <p className="text-body-sm font-semibold text-ink mb-0.5">Hard</p>
+          <p className="text-micro text-ink-tertiary">4 skill games</p>
+        </motion.button>
+      </div>
+
+      <p className="mt-6 mb-8 text-micro text-ink-tertiary">
+        Play games to unlock discounts on your next visit
+      </p>
     </ScreenShell>
   );
 }
