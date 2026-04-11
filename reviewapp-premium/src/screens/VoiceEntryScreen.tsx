@@ -4,7 +4,6 @@ import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useTranscriptStore } from './transcriptStore';
 import PrimaryButton from '@/components/PrimaryButton';
-import { tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
