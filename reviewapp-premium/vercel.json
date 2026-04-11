@@ -3,5 +3,15 @@
     "api/**/*.ts": {
       "includeFiles": "src/architecture/REVIEW_GENERATION_GUIDE.md"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
