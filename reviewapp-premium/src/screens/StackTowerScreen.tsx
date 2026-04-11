@@ -646,7 +646,7 @@ export default function StackTowerScreen() {
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={startGame}
               initial={{ opacity: 0, y: 12 }}
@@ -704,7 +704,7 @@ export default function StackTowerScreen() {
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            transition={spring.bouncy}
+            transition={spring.gentle}
           >
             <motion.p
               className="text-[12px] uppercase tracking-widest text-ink-quiet font-semibold mb-1"
@@ -748,10 +748,10 @@ export default function StackTowerScreen() {
             </motion.div>
 
             <motion.div
-              className="rounded-2xl bg-gradient-brand px-6 py-4 mb-6 shadow-glow"
+              className="rounded-2xl bg-primary px-6 py-4 mb-6 shadow-elevated"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...spring.bouncy, delay: 0.4 }}
+              transition={{ ...spring.gentle, delay: 0.4 }}
             >
               <p className="text-white/80 text-[12px] uppercase tracking-wider mb-1">Earned</p>
               <p className="text-white text-[36px] font-bold font-display leading-none">
@@ -760,7 +760,7 @@ export default function StackTowerScreen() {
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={continueToNext}
               initial={{ opacity: 0, y: 12 }}

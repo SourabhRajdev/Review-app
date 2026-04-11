@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useChoiceStore } from '@/architecture/choice/store';
-import { spring, tapScale, staggerContainer, staggerItem } from '@/design/motion';
+import { spring, tapScale } from '@/design/motion';
 import PrimaryButton from '@/components/PrimaryButton';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
@@ -64,12 +64,7 @@ export default function MenuScreen() {
         Tap items you tried. Multiple is fine.
       </motion.p>
 
-      <motion.div
-        className="flex-1 overflow-y-auto pb-28 space-y-3"
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-      >
+      <div className="flex-1 overflow-y-auto pb-28 space-y-3">
         {MENU.map((cat) => {
           const isOpen = openCat === cat.category;
           const selectedCount = cat.items.filter((i) => items.includes(i)).length;
@@ -78,8 +73,7 @@ export default function MenuScreen() {
           return (
             <motion.div
               key={cat.category}
-              className="rounded-2xl bg-white border border-ink-ghost/15 overflow-hidden shadow-card"
-              variants={staggerItem}
+              className="rounded-2xl bg-surface border border-ink/5 overflow-hidden shadow-card"
             >
               <button
                 className="w-full flex items-center gap-3 px-5 py-4 text-left cursor-pointer"
@@ -193,7 +187,7 @@ export default function MenuScreen() {
             </motion.div>
           );
         })}
-      </motion.div>
+      </div>
 
       {/* Fixed bottom CTA */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-surface via-surface to-transparent">

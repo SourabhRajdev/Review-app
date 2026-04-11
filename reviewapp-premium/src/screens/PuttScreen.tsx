@@ -346,7 +346,7 @@ export default function PuttScreen() {
                 {RETURN_OPTIONS.map((opt, i) => (
                   <motion.button
                     key={opt.id}
-                    className="w-full glass shadow-card rounded-2xl px-6 py-5 text-left"
+                    className="w-full bg-surface border border-ink/5 shadow-card rounded-2xl px-6 py-5 text-left"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...spring.snappy, delay: 0.2 + i * 0.08 }}
@@ -379,7 +379,7 @@ export default function PuttScreen() {
               className="bg-white/90 backdrop-blur-lg rounded-full px-5 py-2 shadow-card"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={spring.bouncy}
+              transition={spring.gentle}
             >
               <span className="text-[14px] font-semibold text-ink">
                 {chosenLabel}
@@ -405,7 +405,7 @@ export default function PuttScreen() {
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={spring.bouncy}
+                transition={spring.gentle}
               >
                 <span className="text-[20px] font-bold text-ink">
                   {resultText}

@@ -414,7 +414,7 @@ export default function BowlingScreen() {
                 How was the overall visit?
               </motion.h2>
               <motion.p
-                className="text-ink-muted text-[15px] mb-8 text-center"
+                className="text-ink/60 text-[15px] mb-8 text-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.15 }}
@@ -426,7 +426,7 @@ export default function BowlingScreen() {
                 {EXP_OPTIONS.map((opt, i) => (
                   <motion.button
                     key={opt.id}
-                    className="w-full glass shadow-card rounded-2xl px-6 py-5 text-left"
+                    className="w-full bg-surface border border-ink/5 shadow-card rounded-2xl px-6 py-5 text-left"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ ...spring.snappy, delay: 0.2 + i * 0.08 }}
@@ -439,7 +439,7 @@ export default function BowlingScreen() {
                         <p className="text-[17px] font-semibold text-ink">
                           {opt.label}
                         </p>
-                        <p className="text-[13px] text-ink-muted">{opt.sub}</p>
+                        <p className="text-[13px] text-ink/60">{opt.sub}</p>
                       </div>
                     </div>
                   </motion.button>
@@ -459,7 +459,7 @@ export default function BowlingScreen() {
               className="bg-white/90 backdrop-blur-lg rounded-full px-5 py-2 shadow-card"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={spring.bouncy}
+              transition={spring.gentle}
             >
               <span className="text-[14px] font-semibold text-ink">
                 {chosenLabel}
@@ -467,7 +467,7 @@ export default function BowlingScreen() {
             </motion.div>
             {!resultText && (
               <motion.p
-                className="text-ink-muted text-[15px] font-medium text-center"
+                className="text-ink/60 text-[15px] font-medium text-center"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
@@ -481,11 +481,11 @@ export default function BowlingScreen() {
           <AnimatePresence>
             {resultText && (
               <motion.div
-                className="bg-white/90 backdrop-blur-lg rounded-3xl px-8 py-4 shadow-glass"
+                className="bg-white/90 backdrop-blur-lg rounded-3xl px-8 py-4 shadow-elevated"
                 initial={{ opacity: 0, scale: 0.8 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={spring.bouncy}
+                transition={spring.gentle}
               >
                 <span className="text-[20px] font-bold text-ink">
                   {resultText}

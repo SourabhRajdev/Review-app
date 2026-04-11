@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useChoiceStore } from '@/architecture/choice/store';
-import { spring, tapScale, staggerContainer, staggerItem } from '@/design/motion';
+import { spring, tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
@@ -45,17 +45,11 @@ export default function ComparisonScreen() {
           Pick the one that fits.
         </motion.p>
 
-        <motion.div
-          className="flex flex-col gap-3 w-full max-w-[360px] mx-auto"
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-        >
+        <div className="flex flex-col gap-3 w-full max-w-[360px] mx-auto">
           {OPTIONS.map((opt) => (
             <motion.button
               key={opt.label}
-              className="glass-card shadow-card rounded-2xl px-5 py-4 text-left cursor-pointer hover:shadow-card-lg transition-shadow duration-200"
-              variants={staggerItem}
+              className="bg-surface border border-ink/5 shadow-card rounded-2xl px-5 py-4 text-left cursor-pointer hover:shadow-elevated transition-shadow duration-200"
               whileTap={tapScale.whileTap}
               onClick={() => pick(opt.label)}
             >
@@ -78,7 +72,7 @@ export default function ComparisonScreen() {
               </div>
             </motion.button>
           ))}
-        </motion.div>
+        </div>
       </div>
     </ScreenShell>
   );

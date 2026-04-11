@@ -3,7 +3,7 @@ import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useChoiceStore } from '@/architecture/choice/store';
 import type { DisappointmentChip } from '@/architecture/choice/types';
-import { spring, tapScale, staggerContainer, staggerItem } from '@/design/motion';
+import { spring, tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
@@ -47,17 +47,11 @@ export default function DisappointmentScreen() {
           Pick the highlight.
         </motion.p>
 
-        <motion.div
-          className="grid grid-cols-2 gap-3 w-full max-w-[360px] mx-auto"
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-        >
+        <div className="grid grid-cols-2 gap-3 w-full max-w-[360px] mx-auto">
           {OPTIONS.map((opt) => (
             <motion.button
               key={opt.id}
-              className="glass-card shadow-card rounded-2xl px-4 py-4 text-center cursor-pointer hover:shadow-card-lg transition-shadow duration-200 flex flex-col items-center gap-2.5"
-              variants={staggerItem}
+              className="bg-surface border border-ink/5 shadow-card rounded-2xl px-4 py-4 text-center cursor-pointer hover:shadow-elevated transition-shadow duration-200 flex flex-col items-center gap-2.5"
               whileTap={tapScale.whileTap}
               onClick={() => pick(opt.id)}
             >
@@ -78,7 +72,7 @@ export default function DisappointmentScreen() {
               <span className="text-[13px] font-semibold text-ink leading-tight">{opt.label}</span>
             </motion.button>
           ))}
-        </motion.div>
+        </div>
       </div>
     </ScreenShell>
   );

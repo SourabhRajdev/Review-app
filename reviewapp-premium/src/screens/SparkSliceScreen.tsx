@@ -290,10 +290,15 @@ export default function SparkSliceScreen() {
                   haptics.slice();
                 }
               } else {
+                // Sliced a burnt item — GAME OVER immediately
                 burntCountRef.current += 1;
                 swipeStreakRef.current = 0;
                 audio.miss();
                 haptics.miss();
+                // End the game immediately
+                running = false;
+                finishGame();
+                return;
               }
               break;
             }
@@ -413,7 +418,7 @@ export default function SparkSliceScreen() {
             exit={{ opacity: 0 }}
           >
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-brand font-semibold mb-2"
+              className="text-[12px] uppercase tracking-widest text-primary font-semibold mb-2"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring.gentle}
@@ -421,7 +426,7 @@ export default function SparkSliceScreen() {
               Round 3 — Slice
             </motion.p>
             <motion.h2
-              className="text-[26px] font-bold font-display text-ink mb-3"
+              className="text-[26px] font-bold text-ink mb-3"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring.gentle, delay: 0.05 }}
@@ -429,12 +434,12 @@ export default function SparkSliceScreen() {
               How was the food?
             </motion.h2>
             <motion.p
-              className="text-ink-muted text-[14px] mb-8 max-w-[300px]"
+              className="text-ink/60 text-[14px] mb-8 max-w-[300px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.15 }}
             >
-              Slice the flavours that fit. Avoid the burnt ones — they cost you points.
+              Slice the good flavours. Avoid burnt ones — slice one and it's game over!
             </motion.p>
 
             <motion.div
@@ -458,7 +463,7 @@ export default function SparkSliceScreen() {
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={startGame}
               initial={{ opacity: 0, y: 12 }}
@@ -481,20 +486,20 @@ export default function SparkSliceScreen() {
           >
             {/* HUD */}
             <div className="flex items-center gap-4 mb-3 text-[13px] font-semibold tabular-nums">
-              <span className="text-ink-soft">
-                <span className="text-brand">{hud.good}</span> sliced
+              <span className="text-ink/70">
+                <span className="text-primary">{hud.good}</span> sliced
               </span>
-              <span className="text-ink-soft">
-                <span className="text-red-600">{hud.burnt}</span> burnt
+              <span className="text-ink/70">
+                <span className="text-error">{hud.burnt}</span> burnt
               </span>
-              <span className="text-ink-soft">
+              <span className="text-ink/70">
                 <span className="text-ink">{Math.ceil(hud.timeLeft / 1000)}s</span>
               </span>
             </div>
 
             <div
               ref={fieldRef}
-              className="rounded-2xl bg-gradient-to-b from-amber-50/60 to-white border border-ink-ghost/10 shadow-card-lg overflow-hidden relative"
+              className="rounded-2xl bg-gradient-to-b from-amber-50/60 to-white border border-ink/5 shadow-card overflow-hidden relative"
               style={{
                 width: FIELD_W,
                 height: FIELD_H,
@@ -555,9 +560,9 @@ export default function SparkSliceScreen() {
             </div>
 
             {/* Time bar */}
-            <div className="w-[300px] h-1 bg-ink-ghost/15 rounded-full mt-3 overflow-hidden">
+            <div className="w-[300px] h-1 bg-ink/10 rounded-full mt-3 overflow-hidden">
               <div
-                className="h-full bg-brand"
+                className="h-full bg-primary"
                 style={{
                   width: `${(hud.timeLeft / GAME_DURATION_MS) * 100}%`,
                   transition: 'width 0.1s linear',
@@ -574,10 +579,10 @@ export default function SparkSliceScreen() {
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            transition={spring.bouncy}
+            transition={spring.gentle}
           >
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-ink-quiet font-semibold mb-1"
+              className="text-[12px] uppercase tracking-widest text-ink/60 font-semibold mb-1"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -585,13 +590,24 @@ export default function SparkSliceScreen() {
               Flavours captured
             </motion.p>
             <motion.h2
-              className="text-[24px] font-bold font-display text-ink mb-4"
+              className="text-[24px] font-bold text-ink mb-4"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
             >
-              {hud.good} good · {hud.burnt} burnt
+              {hud.burnt > 0 ? 'Game Over!' : `${hud.good} flavours sliced!`}
             </motion.h2>
+
+            {hud.burnt > 0 && (
+              <motion.p
+                className="text-[14px] text-error mb-4"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.28 }}
+              >
+                You sliced a burnt item
+              </motion.p>
+            )}
 
             <motion.div
               className="flex flex-wrap justify-center gap-2 max-w-[300px] mb-6"
@@ -610,24 +626,24 @@ export default function SparkSliceScreen() {
                   </span>
                 ))
               ) : (
-                <span className="text-[13px] text-ink-muted">No flavours captured</span>
+                <span className="text-[13px] text-ink/60">No flavours captured</span>
               )}
             </motion.div>
 
             <motion.div
-              className="rounded-2xl bg-gradient-brand px-6 py-4 mb-6 shadow-glow"
+              className="rounded-2xl bg-primary px-6 py-4 mb-6 shadow-elevated"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...spring.bouncy, delay: 0.4 }}
+              transition={{ ...spring.gentle, delay: 0.4 }}
             >
               <p className="text-white/80 text-[12px] uppercase tracking-wider mb-1">Earned</p>
-              <p className="text-white text-[36px] font-bold font-display leading-none">
+              <p className="text-white text-[36px] font-bold leading-none">
                 +{finalDiscount}%
               </p>
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={continueToNext}
               initial={{ opacity: 0, y: 12 }}

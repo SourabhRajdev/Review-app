@@ -486,7 +486,7 @@ export default function DartsScreen() {
             exit={{ opacity: 0 }}
           >
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-brand font-semibold mb-2"
+              className="text-[12px] uppercase tracking-widest text-primary font-semibold mb-2"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring.gentle}
@@ -494,7 +494,7 @@ export default function DartsScreen() {
               Round 1 — Aim
             </motion.p>
             <motion.h2
-              className="text-[26px] font-bold font-display text-ink mb-3"
+              className="text-[26px] font-bold text-ink mb-3"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring.gentle, delay: 0.05 }}
@@ -502,7 +502,7 @@ export default function DartsScreen() {
               What brought you in?
             </motion.h2>
             <motion.p
-              className="text-ink-muted text-[14px] mb-8 max-w-[280px]"
+              className="text-ink/60 text-[14px] mb-8 max-w-[280px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.15 }}
@@ -511,13 +511,13 @@ export default function DartsScreen() {
             </motion.p>
 
             <motion.div
-              className="rounded-2xl bg-white/70 border border-ink-ghost/10 p-5 mb-8 w-full max-w-[300px]"
+              className="rounded-2xl bg-surface border border-ink/5 p-5 mb-8 w-full max-w-[300px]"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <p className="text-[13px] text-ink-muted mb-2 font-semibold">How to throw</p>
-              <ol className="text-[12px] text-ink-soft space-y-1.5 text-left">
+              <p className="text-[13px] text-ink/60 mb-2 font-semibold">How to throw</p>
+              <ol className="text-[12px] text-ink/70 space-y-1.5 text-left">
                 <li>1. Tap to lock the vertical line</li>
                 <li>2. Tap to lock the horizontal line</li>
                 <li>3. Watch the dart fly to the board</li>
@@ -525,7 +525,7 @@ export default function DartsScreen() {
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={startGame}
               initial={{ opacity: 0, y: 12 }}
@@ -546,14 +546,14 @@ export default function DartsScreen() {
             exit={{ opacity: 0 }}
             transition={spring.gentle}
           >
-            <p className="text-[14px] font-semibold text-ink-soft mb-1">
+            <p className="text-[14px] font-semibold text-ink/70 mb-1">
               Throw {Math.min(throwIdx + 1, THROWS)} of {THROWS}
             </p>
-            <p className="text-[12px] text-ink-muted mb-1">
+            <p className="text-[12px] text-ink/60 mb-1">
               {aim.stage === 'x' ? 'Tap to lock the vertical line' : aim.stage === 'y' ? 'Now lock the horizontal line' : 'Nice throw!'}
             </p>
             {/* Score so far */}
-            <p className="text-[11px] text-ink-quiet mb-3">
+            <p className="text-[11px] text-ink/60 mb-3">
               Score: {hits.reduce((a, h) => a + h.score, 0)}
             </p>
 
@@ -561,7 +561,7 @@ export default function DartsScreen() {
               <button
                 type="button"
                 onClick={phase === 'aiming' ? aim.tap : undefined}
-                className="rounded-3xl bg-white shadow-card-lg p-3 cursor-pointer"
+                className="rounded-3xl bg-surface shadow-card p-3 cursor-pointer"
                 style={{ touchAction: 'manipulation' }}
               >
                 <Dartboard
@@ -591,7 +591,7 @@ export default function DartsScreen() {
                 <div
                   key={i}
                   className={`w-2.5 h-2.5 rounded-full transition-colors ${
-                    i < hits.length ? 'bg-brand' : 'bg-ink-ghost/20'
+                    i < hits.length ? 'bg-primary' : 'bg-ink/10'
                   }`}
                 />
               ))}
@@ -606,14 +606,14 @@ export default function DartsScreen() {
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            transition={spring.bouncy}
+            transition={spring.gentle}
           >
             <motion.div
               className="w-20 h-20 rounded-full flex items-center justify-center mb-4"
               style={{ backgroundColor: `${finalOccasion.color}20` }}
               initial={{ scale: 0, rotate: -90 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ ...spring.bouncy, delay: 0.1 }}
+              transition={{ ...spring.gentle, delay: 0.1 }}
             >
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
                 <circle cx="20" cy="20" r="16" fill={finalOccasion.color} fillOpacity="0.25" />
@@ -622,7 +622,7 @@ export default function DartsScreen() {
             </motion.div>
 
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-ink-quiet font-semibold mb-1"
+              className="text-[12px] uppercase tracking-widest text-ink/60 font-semibold mb-1"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -630,7 +630,7 @@ export default function DartsScreen() {
               You came for
             </motion.p>
             <motion.h2
-              className="text-[24px] font-bold font-display text-ink mb-1"
+              className="text-[24px] font-bold text-ink mb-1"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
@@ -638,7 +638,7 @@ export default function DartsScreen() {
               {finalOccasion.label}
             </motion.h2>
             <motion.p
-              className="text-[14px] text-ink-muted mb-2"
+              className="text-[14px] text-ink/60 mb-2"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
@@ -654,26 +654,26 @@ export default function DartsScreen() {
               transition={{ delay: 0.32 }}
             >
               {hits.map((h, i) => (
-                <span key={i} className="text-[11px] font-semibold text-ink-soft bg-white/60 px-2 py-1 rounded-full">
+                <span key={i} className="text-[11px] font-semibold text-ink/70 bg-surface px-2 py-1 rounded-full">
                   {h.score}pts
                 </span>
               ))}
             </motion.div>
 
             <motion.div
-              className="rounded-2xl bg-gradient-brand px-6 py-4 mb-6 shadow-glow"
+              className="rounded-2xl bg-primary px-6 py-4 mb-6 shadow-elevated"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ ...spring.bouncy, delay: 0.4 }}
+              transition={{ ...spring.gentle, delay: 0.4 }}
             >
               <p className="text-white/80 text-[12px] uppercase tracking-wider mb-1">Earned</p>
-              <p className="text-white text-[36px] font-bold font-display leading-none">
+              <p className="text-white text-[36px] font-bold leading-none">
                 +{finalDiscount}%
               </p>
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-gradient-brand px-8 py-[18px] text-[17px] font-semibold text-white shadow-card-warm cursor-pointer"
+              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
               whileTap={tapScale.whileTap}
               onClick={continueToNext}
               initial={{ opacity: 0, y: 12 }}

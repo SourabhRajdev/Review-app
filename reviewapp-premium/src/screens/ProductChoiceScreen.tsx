@@ -8,7 +8,7 @@ import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useChoiceStore } from '@/architecture/choice/store';
 import type { ProductOpinion } from '@/architecture/choice/types';
-import { spring, tapScale, staggerContainer, staggerItem } from '@/design/motion';
+import { spring, tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
@@ -70,12 +70,7 @@ export default function ProductChoiceScreen() {
           One tap. Be honest.
         </motion.p>
 
-        <motion.div
-          className="flex flex-col gap-3 w-full max-w-[360px]"
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-        >
+        <div className="flex flex-col gap-3 w-full max-w-[360px]">
           <AnimatePresence>
             {OPTIONS.map((opt) => {
               const isSelected = selected === opt.id;
@@ -87,12 +82,11 @@ export default function ProductChoiceScreen() {
                     relative w-full rounded-2xl px-5 py-5 text-left cursor-pointer
                     transition-all duration-200
                     ${isSelected
-                      ? 'bg-white shadow-card-warm ring-2 ring-brand/20'
-                      : 'glass-card shadow-card hover:shadow-card-lg'
+                      ? 'bg-surface shadow-elevated ring-2 ring-primary/20'
+                      : 'bg-surface border border-ink/5 shadow-card hover:shadow-elevated'
                     }
                     ${isDimmed ? 'opacity-25 pointer-events-none' : ''}
                   `}
-                  variants={staggerItem}
                   animate={{
                     opacity: isDimmed ? 0.25 : 1,
                     scale: isSelected ? 1.02 : 1
@@ -128,7 +122,7 @@ export default function ProductChoiceScreen() {
               );
             })}
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
     </ScreenShell>
   );
