@@ -43,7 +43,10 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
     }),
   });
 
-  if (!r.ok) throw new Error(`Gemini ${r.status}`);
+  if (!r.ok) {
+    const errBody = await r.text();
+    throw new Error(`Gemini ${r.status}: ${errBody}`);
+  }
   const data = await r.json();
   return (data?.candidates?.[0]?.content?.parts ?? [])
     .map((p: { text?: string }) => p.text || '')
@@ -76,7 +79,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!review) return res.status(200).json({ review: transcript.trim(), model: 'empty-response' });
     return res.status(200).json({ review, model: GEMINI_MODEL });
   } catch (err) {
-    console.error('voice-generate error:', err);
-    return res.status(200).json({ review: transcript.trim(), model: 'error-fallback' });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('voice-generate error:', msg);
+    return res.status(200).json({ review: transcript.trim(), model: 'error-fallback', error: msg });
   }
 }

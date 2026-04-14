@@ -43,7 +43,10 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
     }),
   });
 
-  if (!r.ok) throw new Error(`Gemini ${r.status}`);
+  if (!r.ok) {
+    const errBody = await r.text();
+    throw new Error(`Gemini ${r.status}: ${errBody}`);
+  }
   const data = await r.json();
   return (data?.candidates?.[0]?.content?.parts ?? [])
     .map((p: { text?: string }) => p.text || '')
