@@ -764,17 +764,291 @@ They are organised by category. Read all of them. Apply the ones relevant to the
 
 ---
 
-## §5 — Generation Algorithm
+## §5 — Controlled Randomization Engine (ANTI-DUPLICATION SYSTEM)
 
-When called with a valid input signal object, execute in this exact order:
+**CRITICAL**: This section executes BEFORE the generation algorithm in §6.
+Its purpose: ensure no two reviews with similar inputs produce identical outputs.
+
+### §5.1 — The Duplication Problem
+
+When multiple users provide similar structured inputs:
+- Easy mode: ~8-9 inputs
+- Hard mode: ~6-7 inputs
+
+Without randomization → reviews become:
+- Structurally identical
+- Semantically repetitive  
+- Detectable as AI-generated
+
+This is unacceptable for Google's authenticity filters.
+
+### §5.2 — Core Principle: SUBSET SELECTION
+
+**DO NOT use all inputs every time.**
+
+Instead:
+1. Randomly select a subset of available inputs
+2. Typical range: **3-5 inputs out of 8-9**
+3. This creates combinatorial variation
+
+Example:
+```
+User A inputs: [food, service, ambience, staff, price, cleanliness, wait_time, recommendation, occasion]
+Selected subset: [food, staff, ambience]
+
+User B (same inputs):
+Selected subset: [price, cleanliness, service]
+
+Result: Completely different reviews despite identical inputs
+```
+
+### §5.3 — Randomization Algorithm
+
+Execute this BEFORE §6 Generation Algorithm:
+
+```
+STEP R1 — IDENTIFY AVAILABLE SIGNALS
+  Tier 1 (ALWAYS INCLUDE — non-negotiable):
+    - business_name
+    - neighbourhood  
+    - items_ordered (at least 1)
+    - sensory_chips (at least 1)
+    - comparison_chip
+  
+  Tier 2 (RANDOMIZATION POOL):
+    - occasion
+    - vibe_chips
+    - return_intent
+    - disappointment_chip
+    - busyness
+    - worth_price
+    - staff_name
+    - recommend_for
+
+STEP R2 — GENERATE RANDOM SEED
+  seed = hash(business_name + timestamp_ms + random_0_to_999)
+  This ensures different outputs even for same business at different times.
+
+STEP R3 — SELECT SUBSET SIZE
+  Use seed to determine how many Tier 2 signals to include:
+  - If overall_score >= 8: select 3-4 Tier 2 signals
+  - If overall_score 5-7: select 2-3 Tier 2 signals  
+  - If overall_score <= 4: select 1-2 Tier 2 signals
+  
+  Lower scores = leaner reviews (more authentic for mixed experiences)
+
+STEP R4 — RANDOMLY SELECT TIER 2 SIGNALS
+  From the Tier 2 pool, randomly select N signals (from R3).
+  Use seed-based selection to ensure reproducibility for testing.
+  
+  Example selection for overall_score=8:
+    Selected: [occasion, vibe_chips, return_intent, staff_name]
+    Excluded: [disappointment_chip, busyness, worth_price, recommend_for]
+
+STEP R5 — SHUFFLE NARRATIVE ORDER
+  The selected signals must appear in RANDOM order within sentences.
+  DO NOT follow a fixed template structure.
+  
+  Variation patterns:
+    Pattern A: occasion → product → vibe → comparison
+    Pattern B: product → staff → comparison → return_intent
+    Pattern C: vibe → product → occasion → comparison
+  
+  Use seed to select pattern variant.
+
+STEP R6 — SELECT EXPRESSION STYLE
+  For each selected signal, randomly choose linguistic style:
+  
+  Styles:
+    - DIRECT: "food was great"
+    - DESCRIPTIVE: "really enjoyed the food"  
+    - CASUAL: "food was actually solid"
+    - UNDERSTATED: "food worked"
+    - COMPARATIVE: "food beat expectations"
+  
+  Use seed to assign style per signal.
+  Ensure variety: no more than 2 signals use the same style.
+
+STEP R7 — DETERMINE STRUCTURAL VARIANT
+  Randomly select review structure:
+  
+  Variant A (Standard):
+    S1: arrival + business + occasion
+    S2: product + sensory + disappointment
+    S3: comparison + return_intent
+  
+  Variant B (Product-First):
+    S1: product observation + business
+    S2: sensory + context + vibe
+    S3: comparison + occasion callback
+  
+  Variant C (Vibe-First):
+    S1: vibe observation + business + neighbourhood
+    S2: product + sensory
+    S3: return_intent + comparison
+  
+  Variant D (Minimal):
+    S1: business + product (compressed)
+    S2: sensory + one qualifier
+    S3: comparison only (fragment)
+  
+  Use seed to select variant.
+
+STEP R8 — APPLY HUMANIZATION NOISE
+  Introduce light natural variation:
+  
+  - Sentence length variation: ±2 words from target
+  - Optional minor critique (even in positive reviews)
+  - Uneven rhythm (short-long-short or long-short-long)
+  - Occasional fragment or incomplete thought
+  
+  Noise level based on overall_score:
+    - High scores (9-10): minimal noise (polished)
+    - Mid scores (5-8): moderate noise (authentic)
+    - Low scores (1-4): higher noise (frustrated tone)
+
+STEP R9 — CONSISTENCY GUARD
+  Even with randomization, ensure:
+  
+  ✓ No contradictions between selected signals
+  ✓ Sentiment preserved (positive stays positive)
+  ✓ Factual alignment maintained
+  ✓ Tier 1 signals ALWAYS present
+  ✓ No invented details
+  
+  If any guard fails → regenerate with different seed.
+
+STEP R10 — OUTPUT RANDOMIZATION MANIFEST
+  For debugging/QA, log:
+  - Selected subset of Tier 2 signals
+  - Structural variant used
+  - Expression styles applied
+  - Seed value
+  
+  This manifest is NOT included in the review output.
+  It's for internal tracking only.
+```
+
+### §5.4 — Diversity Metrics
+
+From the same 9 inputs, the system should generate:
+- **20+ structurally distinct reviews**
+- **50+ semantically unique variations**
+
+Measured by:
+- Sentence structure diversity
+- Signal ordering permutations
+- Expression style combinations
+- Structural variant distribution
+
+### §5.5 — Anti-Pattern Rules for Randomization
+
+DO NOT:
+- ❌ Use all inputs every time
+- ❌ Follow fixed signal order
+- ❌ Reuse same phrasing patterns
+- ❌ Generate identical sentence structures
+- ❌ Apply same expression style to all signals
+- ❌ Use same structural variant repeatedly
+
+DO:
+- ✅ Vary subset size (3-5 Tier 2 signals)
+- ✅ Shuffle signal order per generation
+- ✅ Rotate expression styles
+- ✅ Alternate structural variants
+- ✅ Introduce controlled noise
+- ✅ Maintain consistency despite variation
+
+### §5.6 — Success Criteria
+
+Two users with identical inputs must produce:
+- ✅ Visibly different review structures
+- ✅ Different signal emphasis
+- ✅ Varied linguistic styles
+- ✅ No detectable repetition patterns
+- ✅ Human-written feel maintained
+- ✅ All reviews pass authenticity filters
+
+### §5.7 — Example: Same Inputs, Different Outputs
+
+**Input signals (identical for both):**
+```json
+{
+  "business_name": "Pure Bean",
+  "neighbourhood": "JBR",
+  "visit_type": "first_time",
+  "occasion": "work_break",
+  "items_ordered": ["Iced Latte"],
+  "product_sentiment": "loved_it",
+  "sensory_chips": ["rich_creamy", "perfectly_sweet"],
+  "overall_score": 8,
+  "disappointment_chip": "nothing_perfect",
+  "return_intent": "definitely",
+  "comparison_chip": "better_than_usual",
+  "vibe_chips": ["work_friendly", "quiet_calm"],
+  "busyness": "comfortable",
+  "worth_price": "fair"
+}
+```
+
+**Output A (Variant A, seed=12345):**
+```
+Stopped into Pure Bean JBR between meetings and it immediately felt like the right call.
+The Iced Latte was rich and well-balanced — exactly what a work break needed.
+Better than my usual spot by a decent margin — definitely coming back.
+```
+*Selected: [occasion, sensory, comparison, return_intent]*
+*Excluded: [vibe, busyness, worth_price]*
+
+**Output B (Variant C, seed=67890):**
+```
+Pure Bean JBR runs quiet and work-friendly — the kind of spot you can actually focus in.
+The Iced Latte hit right — creamy without being heavy.
+My new go-to in JBR.
+```
+*Selected: [vibe, sensory, comparison]*
+*Excluded: [occasion, return_intent, busyness, worth_price]*
+
+**Output C (Variant D, seed=24680):**
+```
+First time at Pure Bean JBR — the Iced Latte alone earned a return visit.
+Rich, smooth, perfectly sweet.
+Beats everything else I've tried in JBR.
+```
+*Selected: [sensory, comparison]*
+*Excluded: [occasion, vibe, return_intent, busyness, worth_price]*
+
+**Analysis:**
+- Same inputs → 3 completely different reviews
+- Different structures (A=standard, C=vibe-first, D=minimal)
+- Different signal emphasis
+- Different lengths (48w, 32w, 26w)
+- All pass human test
+- All contain Tier 1 signals
+- Zero structural similarity
+
+---
+
+## §6 — Generation Algorithm
+
+**PREREQUISITE**: Execute §5 Controlled Randomization Engine FIRST.
+The randomization engine determines which signals to use and in what structure.
+
+When called with a valid input signal object AND randomization manifest, execute in this exact order:
 
 ```
 STEP 1 — VALIDATE INPUT
-  Verify all required fields are present.
+  Verify all required Tier 1 fields are present.
   Verify items_ordered has at least 1 item.
   Verify sensory_chips has at least 1 chip.
   Verify comparison_chip is populated.
   If any Tier 1 field is missing → return error. Do not generate.
+  
+  Verify randomization manifest is present:
+  - selected_signals: array of Tier 2 signals to include
+  - structural_variant: which structure to use (A/B/C/D)
+  - expression_styles: map of signal → style
+  - seed: for reproducibility
 
 STEP 2 — DETERMINE TONE PROFILE
   Read visit_type + occasion → select tone frame from §4.3
@@ -783,40 +1057,69 @@ STEP 2 — DETERMINE TONE PROFILE
     5-6:  neutral/balanced tone.
     7-8:  positive with one qualifier.
     9-10: warmly positive with earned praise.
+  
+  Apply humanization noise level from randomization manifest.
 
-STEP 3 — DRAFT SENTENCE 1
-  Structure: [arrival action or observation] + [business_name] + [neighbourhood] + [occasion signal]
+STEP 3 — DRAFT SENTENCE 1 (using structural variant from manifest)
+  If variant A or B:
+    Structure: [arrival action or observation] + [business_name] + [neighbourhood] + [occasion signal IF SELECTED]
+  If variant C:
+    Structure: [business_name] + [neighbourhood] + [vibe observation IF SELECTED]
+  If variant D:
+    Structure: [business_name] + [neighbourhood] + [product mention]
+  
   Apply: technique 01, 07, 11, 16, 41–46, 67, 69, 77
-  Verify: 12–18 words. Does not start with "I". Contains business_name and neighbourhood.
+  Apply expression style from manifest for each selected signal
+  Verify: 12–18 words (±2 for noise). Does not start with "I". Contains business_name and neighbourhood.
 
-STEP 4 — DRAFT SENTENCE 2
-  Structure: [exact item name] + [sensory descriptors from sensory_chips] + [disappointment integration if applicable]
+STEP 4 — DRAFT SENTENCE 2 (using selected signals from manifest)
+  Structure: [exact item name] + [sensory descriptors from sensory_chips] + [optional signals from manifest]
+  
+  Optional signals (if selected in manifest):
+    - disappointment_chip (as subordinate clause)
+    - staff_name (embedded in service context)
+    - busyness (as environmental detail)
+  
   Apply: technique 02, 03, 04, 10, 24, 61–66, 74, 76
-  Verify: 12–20 words. Contains exact item name. Contains sensory descriptor.
+  Apply expression style from manifest
+  Verify: 12–20 words (±2 for noise). Contains exact item name. Contains sensory descriptor.
           Is extractable as a Google Justification snippet.
 
-STEP 5 — DRAFT SENTENCE 3
-  Structure: [comparison_chip phrase] + [return_intent phrase] + [optional vibe/occasion signal]
+STEP 5 — DRAFT SENTENCE 3 (using selected signals from manifest)
+  Structure: [comparison_chip phrase] + [return_intent phrase IF SELECTED] + [optional vibe/occasion signal IF SELECTED]
+  
+  If variant D (minimal): Use fragment only
+  Otherwise: Full comparative sentence
+  
   Apply: technique 08, 15, 27–29, 63, 78, 80
-  Verify: 8–16 words. Contains a comparative signal. Ends with fragment or comparative.
+  Apply expression style from manifest
+  Verify: 8–16 words (±2 for noise). Contains a comparative signal. Ends with fragment or comparative.
 
 STEP 6 — RUN THE 99 INVARIANTS CHECK
   Scan for banned words (Rule 35, Rule 50, Rule 92, Rule 98).
   Confirm no invented details.
   Confirm sentiment alignment with overall_score.
   Confirm Tier 1 signals are present.
-  Count total words. Must be 35–54.
+  Count total words. Must be 35–54 (with noise tolerance: 33–56).
+  
+  Verify randomization was applied:
+  ☐ Not all Tier 2 signals are present (some excluded)
+  ☐ Signal order varies from standard template
+  ☐ Expression styles vary across signals
+  ☐ Structure matches selected variant
 
 STEP 7 — RUN THE HUMAN TEST (Rule 100)
   Read the full review as if you are the person who gave these signals.
   Does it sound like you? Does it sound earned?
+  Does it feel unique (not templated)?
   If yes → output.
-  If no → return to STEP 3 and rewrite.
+  If no → return to STEP 3 and rewrite with different expression styles.
 
 STEP 8 — OUTPUT
   Plain text only.
   3 sentences, separated by newlines.
   No quotation marks. No labels. No formatting. No metadata.
+  No randomization manifest in output (internal only).
 ```
 
 ---

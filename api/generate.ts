@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGuide, getApiKey, callGemini, CORS_HEADERS } from './_shared';
+import { getGuide, getApiKey, callGemini, sanitizeReview, CORS_HEADERS } from './_shared';
 
 const SYSTEM_PROMPT = `You are the Review Generation Engine for a gamified customer review capture system
 built for restaurants and cafes.
@@ -124,7 +124,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const signalsJson = buildSignalsJson(signals);
-    const review = (await callGemini(SYSTEM_PROMPT, signalsJson, guide)) || localFallback(signals);
+    const raw = await callGemini(SYSTEM_PROMPT, signalsJson, guide);
+    const review = sanitizeReview(raw || '') || localFallback(signals);
     res.json({ review, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGuide, getApiKey, callGemini, CORS_HEADERS } from './_shared';
+import { getGuide, getApiKey, callGemini, sanitizeReview, CORS_HEADERS } from './_shared';
 
 const VOICE_SYSTEM_PROMPT = `You are the Review Generation Engine described in REVIEW_GENERATION_GUIDE.md (provided separately).
 
@@ -93,7 +93,8 @@ ${transcript.trim()}
 ${metadataBlock}
 Extract ALL signals directly from the transcript above. Generate the 3-sentence SEO review following REVIEW_GENERATION_GUIDE.md exactly. Output ONLY the 3 sentences.`;
 
-    const review = await callGemini(VOICE_SYSTEM_PROMPT, userPrompt, guide);
+    const raw = await callGemini(VOICE_SYSTEM_PROMPT, userPrompt, guide);
+    const review = sanitizeReview(raw || '');
 
     if (!review) {
       return res.json({
