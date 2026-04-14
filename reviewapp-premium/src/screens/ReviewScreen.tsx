@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ScreenShell from './ScreenShell';
-import { useNavigation } from './useNavigation';
 import { useReviewStore } from './reviewStore';
 import PrimaryButton from '@/components/PrimaryButton';
 import { tapScale } from '@/design/motion';
@@ -9,7 +8,6 @@ import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
 export default function ReviewScreen() {
-  const go = useNavigation((s) => s.go);
   const text = useReviewStore((s) => s.text);
   const updateText = useReviewStore((s) => s.updateText);
   const [copied, setCopied] = useState(false);
