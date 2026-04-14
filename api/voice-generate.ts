@@ -39,7 +39,6 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
         maxOutputTokens: 400,
         temperature: 0.85,
         topP: 0.95,
-        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
@@ -77,7 +76,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!review) return res.status(200).json({ review: transcript.trim(), model: 'empty-response' });
     return res.status(200).json({ review, model: GEMINI_MODEL });
   } catch (err) {
-    console.error('voice-generate error:', err);
-    return res.status(200).json({ review: transcript.trim(), model: 'error-fallback' });
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('voice-generate error:', msg);
+    return res.status(200).json({ review: transcript.trim(), model: 'error-fallback', error: msg });
   }
 }

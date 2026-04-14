@@ -39,7 +39,6 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
         maxOutputTokens: 400,
         temperature: 0.85,
         topP: 0.95,
-        thinkingConfig: { thinkingBudget: 0 },
       },
     }),
   });
