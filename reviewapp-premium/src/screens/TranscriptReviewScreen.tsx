@@ -1,94 +1,193 @@
-import { motion } from 'framer-motion';
-import ScreenShell from './ScreenShell';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { useNavigation } from './useNavigation';
 import { useTranscriptStore } from './transcriptStore';
 import { useReviewStore } from './reviewStore';
 import PrimaryButton from '@/components/PrimaryButton';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
+import { pageSlide } from '@/design/motion';
+
+const MIN_WORDS = 5;
+
+function wordCount(text: string) {
+  return text.trim().split(/\s+/).filter(w => w.length > 1).length;
+}
 
 export default function TranscriptReviewScreen() {
   const go = useNavigation((s) => s.go);
+  const back = useNavigation((s) => s.back);
   const transcript = useTranscriptStore((s) => s.transcript);
-  const useAI = useTranscriptStore((s) => s.useAI);
-  const setUseAI = useTranscriptStore((s) => s.setUseAI);
   const setTranscript = useTranscriptStore((s) => s.setTranscript);
   const setReview = useReviewStore((s) => s.setReview);
+  const [isEditing, setIsEditing] = useState(false);
+  const [localTranscript, setLocalTranscript] = useState('');
+  const [hint, setHint] = useState('');
 
-  function handleContinue() {
+  useEffect(() => {
+    if (transcript && transcript.trim().length > 0) {
+      setLocalTranscript(transcript);
+    }
+  }, [transcript]);
+
+  function handlePolishWithAI() {
+    const textToUse = localTranscript || transcript;
+
+    if (!textToUse || textToUse.trim().length === 0) {
+      setHint('Nothing to polish — try recording again.');
+      return;
+    }
+
+    if (wordCount(textToUse) < MIN_WORDS) {
+      setHint('Say a bit more — what did you have, where, and how was it?');
+      haptics.tick();
+      return;
+    }
+
+    setHint('');
     audio.tap();
     haptics.press();
-    if (useAI) go('generating');
-    else { setReview(transcript); go('review'); }
+    setTranscript(textToUse);
+    go('generating');
   }
 
+  function handleKeepAsIs() {
+    const textToUse = localTranscript || transcript;
+
+    if (!textToUse || textToUse.trim().length === 0) {
+      setHint('Nothing to keep — try recording again.');
+      return;
+    }
+
+    setHint('');
+    audio.tap();
+    haptics.press();
+    setReview(textToUse);
+    go('review');
+  }
+
+  function handleEdit() {
+    audio.tap();
+    haptics.press();
+    setHint('');
+    setIsEditing(true);
+  }
+
+  function handleSaveEdit(newText: string) {
+    audio.tap();
+    haptics.press();
+    setLocalTranscript(newText);
+    setTranscript(newText);
+    setIsEditing(false);
+  }
+
+  const displayText = localTranscript || transcript || 'No transcript available';
+  const tooShort = wordCount(displayText) < MIN_WORDS;
+
   return (
-    <ScreenShell hideProgress>
-      <h2 className="text-display text-ink mb-2 mt-6">Your transcript</h2>
-      <p className="text-body-sm text-ink-secondary mb-6">Edit if needed, then choose how to use it</p>
-
-      <motion.textarea
-        className="w-full bg-surface rounded-card p-5 text-body leading-relaxed text-ink resize-none border border-ink-ghost/20 outline-none focus:ring-2 focus:ring-primary/30 min-h-[180px] mb-6 shadow-card"
-        value={transcript}
-        onChange={(e) => setTranscript(e.target.value)}
-        spellCheck={false}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-      />
-
-      {/* AI Toggle */}
-      <div className="bg-surface rounded-card p-5 shadow-card border border-ink-ghost/20 mb-6">
-        <div className="flex gap-3 mb-4">
-          <button
-            className={`flex-1 rounded-button p-4 border-2 transition-all cursor-pointer ${
-              useAI ? 'border-primary bg-primary-muted' : 'border-ink-ghost/20 bg-surface-secondary'
-            }`}
-            onClick={() => { setUseAI(true); audio.tick(); haptics.tick(); }}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <svg className={`w-5 h-5 ${useAI ? 'text-primary' : 'text-ink-tertiary'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-            </div>
-            <p className={`text-body-sm font-semibold mb-0.5 ${useAI ? 'text-ink' : 'text-ink-tertiary'}`}>Polish with AI</p>
-            <p className={`text-caption ${useAI ? 'text-ink-secondary' : 'text-ink-tertiary'}`}>SEO-optimized review</p>
-          </button>
-
-          <button
-            className={`flex-1 rounded-button p-4 border-2 transition-all cursor-pointer ${
-              !useAI ? 'border-primary bg-primary-muted' : 'border-ink-ghost/20 bg-surface-secondary'
-            }`}
-            onClick={() => { setUseAI(false); audio.tick(); haptics.tick(); }}
-          >
-            <div className="flex items-center justify-center mb-2">
-              <svg className={`w-5 h-5 ${!useAI ? 'text-primary' : 'text-ink-tertiary'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-            </div>
-            <p className={`text-body-sm font-semibold mb-0.5 ${!useAI ? 'text-ink' : 'text-ink-tertiary'}`}>Keep as is</p>
-            <p className={`text-caption ${!useAI ? 'text-ink-secondary' : 'text-ink-tertiary'}`}>Your exact words</p>
-          </button>
-        </div>
-
-        <div className="bg-surface-secondary rounded-button p-3">
-          <p className="text-caption text-ink-secondary leading-relaxed">
-            {useAI ? (
-              <><span className="font-semibold text-primary">AI mode:</span> We'll extract key details and craft a Google-optimized 3-sentence review.</>
-            ) : (
-              <><span className="font-semibold text-ink">Raw mode:</span> Your transcript will be used exactly as spoken.</>
-            )}
+    <motion.div
+      className="fixed inset-0 bg-bg flex items-center justify-center px-5"
+      variants={pageSlide}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <h1 className="text-display text-ink mb-2">Your Review</h1>
+          <p className="text-body-sm text-ink-secondary">
+            Polish with AI or keep as is
           </p>
         </div>
+
+        {/* Transcript Display / Edit */}
+        <div className="mb-6">
+          {isEditing ? (
+            <div className="space-y-4">
+              <textarea
+                className="w-full h-48 p-4 rounded-card bg-surface border border-ink-ghost text-ink text-body resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                value={localTranscript}
+                onChange={(e) => setLocalTranscript(e.target.value)}
+                autoFocus
+              />
+              <button
+                onClick={() => handleSaveEdit(localTranscript)}
+                className="w-full text-button text-primary font-medium"
+              >
+                Save Changes
+              </button>
+            </div>
+          ) : (
+            <motion.div
+              className="p-6 rounded-card bg-surface border border-ink-ghost shadow-card"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <p className="text-body text-ink leading-relaxed mb-4">
+                {displayText}
+              </p>
+              <button
+                onClick={handleEdit}
+                className="text-micro text-primary font-medium"
+              >
+                Edit
+              </button>
+            </motion.div>
+          )}
+        </div>
+
+        {/* Inline hint — shown when transcript is too short or an error occurred */}
+        <AnimatePresence>
+          {hint && (
+            <motion.p
+              key="hint"
+              className="text-body-sm text-ink-secondary text-center mb-4"
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {hint}
+            </motion.p>
+          )}
+        </AnimatePresence>
+
+        {/* Action Buttons */}
+        {!isEditing && (
+          <div className="space-y-3">
+            <PrimaryButton onClick={handlePolishWithAI} disabled={tooShort}>
+              <span className="flex items-center justify-center gap-2">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                Polish with AI
+              </span>
+            </PrimaryButton>
+
+            {tooShort && (
+              <p className="text-micro text-ink-tertiary text-center -mt-1">
+                Say a bit more — what did you have, where, and how was it?
+              </p>
+            )}
+
+            <button
+              onClick={handleKeepAsIs}
+              className="w-full py-3.5 rounded-button text-button text-ink font-medium border border-ink-ghost bg-surface hover:bg-ink-ghost/5 transition-colors"
+            >
+              Keep as is
+            </button>
+
+            <button
+              onClick={back}
+              className="w-full py-3 text-micro text-ink-tertiary hover:text-ink-secondary transition-colors"
+            >
+              Back
+            </button>
+          </div>
+        )}
       </div>
-
-      <PrimaryButton onClick={handleContinue}>Continue</PrimaryButton>
-
-      <button
-        className="w-full text-body-sm text-ink-tertiary mt-3 mb-8 cursor-pointer"
-        onClick={() => go('voiceEntry')}
-      >
-        Record again
-      </button>
-    </ScreenShell>
+    </motion.div>
   );
 }

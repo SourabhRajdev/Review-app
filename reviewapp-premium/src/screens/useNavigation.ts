@@ -24,10 +24,16 @@ export const useNavigation = create<NavStore>((set, get) => ({
   direction: 1,
   go: (screen) => {
     const cur = get().current;
+    console.log('🔀 [useNavigation] go() called');
+    console.log('🔀 [useNavigation] From:', cur, '→ To:', screen);
+    
     const curIdx = FLOW_ORDER.indexOf(cur);
     const nextIdx = FLOW_ORDER.indexOf(screen);
     const dir = nextIdx >= curIdx ? 1 : -1;
+    
     set({ current: screen, previous: cur, direction: dir });
+    
+    console.log('✅ [useNavigation] State updated, current is now:', get().current);
   },
   back: () => {
     const prev = get().previous;

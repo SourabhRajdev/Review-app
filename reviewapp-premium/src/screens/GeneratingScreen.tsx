@@ -32,34 +32,84 @@ export default function GeneratingScreen() {
   useEffect(() => {
     if (called.current) return;
     called.current = true;
-    if (transcript) {
+    
+    console.log('🔥 [GeneratingScreen] ========== MOUNTED ==========');
+    console.log('📝 [GeneratingScreen] Transcript:', transcript);
+    console.log('📏 [GeneratingScreen] Transcript length:', transcript?.length || 0);
+    
+    if (transcript && transcript.trim().length > 0) {
+      console.log('🎯 [GeneratingScreen] Using VOICE generation flow');
       handleVoiceGeneration();
     } else {
+      console.log('🎮 [GeneratingScreen] Using GAME generation flow');
       handleGameGeneration();
     }
-  }, [transcript]);
+  }, []);
 
   async function handleVoiceGeneration() {
+    console.log('🎯 [GeneratingScreen] ========== VOICE GENERATION START ==========');
+    console.log('📝 [GeneratingScreen] Transcript:', transcript);
+    console.log('📏 [GeneratingScreen] Length:', transcript?.length || 0);
+    
     try {
       const params = new URLSearchParams(location.search);
+      const payload = {
+        transcript,
+        ...(params.get('biz') && { business_name: params.get('biz') }),
+        ...(params.get('hood') && { neighbourhood: params.get('hood') }),
+      };
+      
+      console.log('📤 [GeneratingScreen] Sending to API:', payload);
+      console.log('🌐 [GeneratingScreen] API URL: /api/voice-generate');
+
       const response = await fetch(`/api/voice-generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript,
-          ...(params.get('biz') && { business_name: params.get('biz') }),
-          ...(params.get('hood') && { neighbourhood: params.get('hood') }),
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error('Voice generation failed');
+      
+      console.log('📥 [GeneratingScreen] Response status:', response.status);
+      console.log('📥 [GeneratingScreen] Response ok:', response.ok);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [GeneratingScreen] API error:', response.status, errorText);
+        throw new Error('Voice generation failed');
+      }
+      
       const data = await response.json();
-      setReview(data.review);
+      console.log('✅ [GeneratingScreen] API response data:', data);
+      console.log('📝 [GeneratingScreen] Generated review:', data.review);
+      console.log('🤖 [GeneratingScreen] Model used:', data.model);
+      
+      const reviewText = data.review || transcript;
+      
+      console.log('💾 [GeneratingScreen] Setting review to:', reviewText);
+      setReview(reviewText);
+      
+      console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
+      
+      console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
-    } catch {
-      setReview(transcript);
+      console.log('✅ [GeneratingScreen] Navigation complete');
+    } catch (err) {
+      console.error('❌ [GeneratingScreen] Voice generation error:', err);
+      console.log('🔄 [GeneratingScreen] Using fallback transcript');
+      
+      const fallbackText = transcript && transcript.trim().length > 0 
+        ? transcript 
+        : 'Thank you for your feedback. Please try again.';
+      
+      console.log('💾 [GeneratingScreen] Fallback text:', fallbackText);
+      setReview(fallbackText);
+      
+      console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
+      
+      console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
+      console.log('✅ [GeneratingScreen] Navigation complete');
     }
   }
 
@@ -160,11 +210,13 @@ export default function GeneratingScreen() {
     })
       .then((r) => r.json())
       .then((data) => {
-        setReview(data.review || gameFallback(payload));
+        console.log('[GeneratingScreen] Game generation API response:', data);
+        setReview(data.review || '');
         go('review');
       })
-      .catch(() => {
-        setReview(gameFallback(payload));
+      .catch((err) => {
+        console.error('[GeneratingScreen] Game generation network error:', err);
+        setReview('');
         go('review');
       });
   }
@@ -205,23 +257,4 @@ export default function GeneratingScreen() {
       </p>
     </ScreenShell>
   );
-}
-
-function gameFallback(s: Record<string, unknown>): string {
-  const biz = String(s.business_name || 'this spot');
-  const hood = s.neighbourhood ? ` ${String(s.neighbourhood)}` : '';
-  const score = Number(s.overall_score || 7);
-  const phrases = (s.selected_phrases as string[]) || [];
-  const positives = (s.positive_aspects as string[]) || [];
-
-  const s1 = score >= 7
-    ? `Stopped into ${biz}${hood} and it was exactly what was needed.`
-    : `Gave ${biz}${hood} a try and it was a mixed bag.`;
-  const details = positives.length > 0 ? positives.slice(0, 2).join(' and ') : 'the overall experience';
-  const s2 = score >= 7
-    ? `The ${details} at ${biz}${hood} hit the mark.`
-    : `The ${details} at ${biz}${hood} could use some work.`;
-  const s3 = phrases.length > 0 ? `${phrases[0]}.` : score >= 7 ? 'Will be back.' : 'Has potential.';
-
-  return [s1, s2, s3].join('\n');
 }

@@ -3,6 +3,8 @@ import { getGuide, getApiKey, callGemini, CORS_HEADERS } from './_shared';
 
 const VOICE_SYSTEM_PROMPT = `You are the Review Generation Engine described in REVIEW_GENERATION_GUIDE.md (provided separately).
 
+CRITICAL: Before generating, you MUST execute the Controlled Randomization Engine (§5) to avoid duplication.
+
 Your task:
 1. Read the customer's raw voice transcript below.
 2. Extract EVERY signal you can identify from the transcript itself:
@@ -15,28 +17,35 @@ Your task:
    - comparison_chip: default to "better_than_usual"
    - return_intent: infer from tone; default to "probably"
 4. If business_name or neighbourhood are provided in the metadata below the transcript, use those ONLY as a supplement.
-5. Follow the REVIEW_GENERATION_GUIDE.md generation algorithm exactly:
+5. EXECUTE §5 CONTROLLED RANDOMIZATION ENGINE:
+   - Randomly select 3-5 Tier 2 signals (do NOT use all signals)
+   - Choose a structural variant (A/B/C/D)
+   - Assign expression styles to each signal
+   - Generate a random seed for this review
+6. Follow the REVIEW_GENERATION_GUIDE.md generation algorithm (§6) exactly:
    STEP 1 -> validate extracted signals
    STEP 2 -> determine tone
-   STEP 3 -> build Sentence 1 (THE ANCHOR)
-   STEP 4 -> build Sentence 2 (THE PRODUCT SIGNAL)
-   STEP 5 -> build Sentence 3 (THE CLOSER)
+   STEP 3 -> build Sentence 1 (THE ANCHOR) using selected variant
+   STEP 4 -> build Sentence 2 (THE PRODUCT SIGNAL) with selected signals only
+   STEP 5 -> build Sentence 3 (THE CLOSER) with selected signals only
    STEP 6 -> verify all 9 SEO signals and invariants
    STEP 7 -> run the human test
    STEP 8 -> output
 
 OUTPUT RULES (absolute):
 - Exactly 3 sentences. No more.
-- 35-54 words total.
+- 35-54 words total (±2 for humanization noise).
 - Never start with "I".
 - No banned words (amazing, wonderful, delightful, fantastic, incredible, etc.).
 - No exclamation marks.
-- NEVER use em dashes. Use commas, "but", "and", or "though" instead.
+- NEVER use em dashes (— or --). Use commas, "but", "and", or "though" instead.
 - Past tense for the experience.
 - Plain text only. No labels, no quotes. Just the 3 sentences separated by newlines.
 - Sentence 2 MUST mention the exact item "at [business_name] [neighbourhood/location]".
 - Sentence 3 MUST contain a comparative signal.
-- NEVER invent a business name. Use ONLY what the customer said or what is in the metadata.`;
+- NEVER invent a business name. Use ONLY what the customer said or what is in the metadata.
+- DO NOT use all signals — randomly exclude 3-5 Tier 2 signals per generation.
+- VARY structure — do not follow the same template every time.`;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS

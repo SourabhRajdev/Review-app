@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ScreenShell from './ScreenShell';
+import { useNavigation } from './useNavigation';
 import { useReviewStore } from './reviewStore';
 import PrimaryButton from '@/components/PrimaryButton';
 import { tapScale } from '@/design/motion';
@@ -8,20 +9,34 @@ import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
 export default function ReviewScreen() {
+  const go = useNavigation((s) => s.go);
   const text = useReviewStore((s) => s.text);
   const updateText = useReviewStore((s) => s.updateText);
   const [copied, setCopied] = useState(false);
 
+  // Log on mount
+  useEffect(() => {
+    console.log('🔥 [ReviewScreen] MOUNTED');
+    console.log('📝 [ReviewScreen] Review text:', text);
+    console.log('📏 [ReviewScreen] Text length:', text?.length || 0);
+  }, []);
+
+  // NO AUTO REDIRECTS - always render something
+  const displayText = text && text.trim().length > 0 
+    ? text 
+    : 'Your review will appear here.';
+
   const googleUrl =
     new URLSearchParams(location.search).get('gurl') ||
-    'https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4';
+    'https://www.google.com/maps/place/Pure+Bean+Sharjah/@25.3057642,55.4684157,17z/data=!4m8!3m7!1s0x3e5f5fcd5f1573e1:0xb41d6947ccc86718!8m2!3d25.3057642!4d55.4684157!9m1!1b1!16s%2Fg%2F11yn5kcwp2?entry=ttu&g_ep=EgoyMDI2MDQwOC4wIKXMDSoASAFQAw%3D%3D';
   const tripUrl =
     new URLSearchParams(location.search).get('turl') ||
     'https://www.tripadvisor.com/UserReview';
 
   async function handleCopy() {
+    console.log('[ReviewScreen] Copying review text:', displayText);
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(displayText);
     } catch {
       const ta = document.querySelector('textarea');
       ta?.select();
@@ -52,7 +67,7 @@ export default function ReviewScreen() {
         <div className="p-5">
           <textarea
             className="w-full bg-transparent text-body leading-relaxed text-ink resize-none border-0 outline-none min-h-[180px]"
-            value={text}
+            value={displayText}
             onChange={(e) => updateText(e.target.value)}
             spellCheck={false}
           />
