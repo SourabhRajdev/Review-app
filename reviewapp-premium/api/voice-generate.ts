@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || '').trim();
 
 const SYSTEM_PROMPT = `You are a review generation engine. The customer will give you a raw voice transcript of their experience at a restaurant or café.
 
