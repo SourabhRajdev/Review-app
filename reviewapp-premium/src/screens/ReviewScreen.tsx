@@ -39,18 +39,26 @@ export default function ReviewScreen() {
     new URLSearchParams(location.search).get('gurl') ||
     'https://www.google.com/maps/place/Pure+Bean+Sharjah/@25.3057642,55.4684157,17z/data=!4m8!3m7!1s0x3e5f5fcd5f1573e1:0xb41d6947ccc86718!8m2!3d25.3057642!4d55.4684157!9m1!1b1!16s%2Fg%2F11yn5kcwp2?entry=ttu&g_ep=EgoyMDI2MDQwOC4wIKXMDSoASAFQAw%3D%3D';
 
-  // Auto-copy as soon as a real review is available
+  // Auto-copy as soon as a real review is available.
+  // 400ms delay: lets the page animation settle and ensures document focus
+  // is established after navigation — clipboard API blocks on unfocused pages.
   useEffect(() => {
     if (autoCopyDone.current) return;
     const t = text?.trim();
     if (!t) return;
     autoCopyDone.current = true;
-    copyToClipboard(t).then(() => {
-      setAutoCopied(true);
-      audio.bullseye();
-      haptics.impact();
-      setTimeout(() => setAutoCopied(false), 3000);
-    });
+    const timer = setTimeout(() => {
+      copyToClipboard(t).then(() => {
+        setAutoCopied(true);
+        audio.bullseye();
+        haptics.impact();
+        setTimeout(() => setAutoCopied(false), 3000);
+      }).catch(() => {
+        // Clipboard blocked (e.g. browser policy) — silently ignore,
+        // user can still tap "Copy Review" manually
+      });
+    }, 400);
+    return () => clearTimeout(timer);
   }, [text]);
 
   async function handleCopy() {
