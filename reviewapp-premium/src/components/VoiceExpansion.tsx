@@ -1,4 +1,4 @@
-import { motion, AnimatePresence, useMotionValue, useTransform, MotionValue } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
@@ -20,48 +20,13 @@ interface Props {
 export default function VoiceExpansion({ onTranscript, onComplete, onStateChange }: Props) {
   const [state, setState] = useState<VoiceState>('idle');
   const [error, setError] = useState('');
-  const audioLevel = useMotionValue(0);
 
   const streamRef        = useRef<MediaStream | null>(null);
   const recorderRef      = useRef<MediaRecorder | null>(null);
-  const audioCtxRef      = useRef<AudioContext | null>(null);
-  const analyserRef      = useRef<AnalyserNode | null>(null);
-  const animFrameRef     = useRef<number>(0);
   const chunksRef        = useRef<Blob[]>([]);
   const isCompletedRef   = useRef(false);
 
   useEffect(() => { onStateChange?.(state); }, [state, onStateChange]);
-
-  // ── Waveform ─────────────────────────────────────────────────────
-  // AnalyserNode reads frequency data via requestAnimationFrame —
-  // no ScriptProcessor overhead, no destination connection needed.
-  function startWaveform(stream: MediaStream) {
-    const ctx = new AudioContext();
-    audioCtxRef.current = ctx;
-    const source = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
-    source.connect(analyser);
-    analyserRef.current = analyser;
-
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    function tick() {
-      animFrameRef.current = requestAnimationFrame(tick);
-      analyser.getByteFrequencyData(data);
-      let sum = 0;
-      for (let i = 0; i < data.length; i++) sum += data[i];
-      audioLevel.set(Math.min(1, (sum / data.length) / 80));
-    }
-    tick();
-  }
-
-  function stopWaveform() {
-    cancelAnimationFrame(animFrameRef.current);
-    audioLevel.set(0);
-    try { audioCtxRef.current?.close(); } catch { /* ignore */ }
-    audioCtxRef.current = null;
-    analyserRef.current = null;
-  }
 
   // ── Start recording ──────────────────────────────────────────────
   async function startRecording() {
@@ -84,7 +49,6 @@ export default function VoiceExpansion({ onTranscript, onComplete, onStateChange
     }
 
     streamRef.current = stream;
-    startWaveform(stream);
 
     const recorder = new MediaRecorder(stream);
     recorderRef.current = recorder;
@@ -94,7 +58,6 @@ export default function VoiceExpansion({ onTranscript, onComplete, onStateChange
     };
 
     recorder.onstop = () => {
-      stopWaveform();
       stream.getTracks().forEach(t => t.stop());
       streamRef.current = null;
 
@@ -168,13 +131,11 @@ export default function VoiceExpansion({ onTranscript, onComplete, onStateChange
   // ── Cleanup on unmount ───────────────────────────────────────────
   useEffect(() => {
     return () => {
-      stopWaveform();
       streamRef.current?.getTracks().forEach(t => t.stop());
       try {
         if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
       } catch { /* ignore */ }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Render ───────────────────────────────────────────────────────
@@ -207,7 +168,7 @@ export default function VoiceExpansion({ onTranscript, onComplete, onStateChange
         {state === 'recording' && (
           <motion.div key="recording" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }} className="text-center">
-            <Waveform audioLevel={audioLevel} />
+            <Waveform />
             <p className="text-body-sm font-semibold text-ink mb-1 mt-4">Listening…</p>
             <p className="text-micro text-ink-tertiary mb-4">Speak naturally about your experience</p>
             <button onClick={finishRecording} className="text-micro text-primary font-medium">
@@ -259,25 +220,34 @@ export default function VoiceExpansion({ onTranscript, onComplete, onStateChange
   );
 }
 
-function Waveform({ audioLevel }: { audioLevel: MotionValue<number> }) {
+// Constant looping waveform — always animated, not reactive to mic level.
+// Each bar animates between a min and max height driven by a sine-wave pattern
+// with a unique phase offset so bars ripple naturally across the group.
+function Waveform() {
+  const BARS = 28;
   return (
     <div className="flex items-center justify-center gap-[3px] h-16 overflow-hidden">
-      {Array.from({ length: 32 }).map((_, i) => (
-        <WaveformBar key={i} audioLevel={audioLevel} index={i} total={32} />
-      ))}
+      {Array.from({ length: BARS }).map((_, i) => {
+        // Shape: taller in the centre, shorter at edges
+        const centerDistance = Math.abs(i - BARS / 2) / (BARS / 2);
+        const maxH = Math.round((1 - centerDistance * 0.65) * 100);
+        const minH = Math.round(maxH * 0.25);
+        // Stagger delay so bars ripple left→right
+        const delay = (i / BARS) * -1.4;
+        return (
+          <motion.div
+            key={i}
+            className="w-[2px] bg-primary rounded-full"
+            animate={{ height: [`${minH}%`, `${maxH}%`, `${minH}%`] }}
+            transition={{
+              duration: 1.1 + (i % 5) * 0.08,
+              repeat: Infinity,
+              ease: 'easeInOut',
+              delay,
+            }}
+          />
+        );
+      })}
     </div>
-  );
-}
-
-function WaveformBar({ audioLevel, index, total }: { audioLevel: MotionValue<number>; index: number; total: number }) {
-  const centerDistance = Math.abs(index - total / 2) / (total / 2);
-  const baseHeight = 1 - centerDistance * 0.7;
-  const scaleY = useTransform(audioLevel, [0, 1], [1, 1 + baseHeight * 0.75]);
-  return (
-    <motion.div
-      className="w-[2px] bg-primary rounded-full"
-      style={{ height: `${baseHeight * 100}%`, scaleY }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-    />
   );
 }

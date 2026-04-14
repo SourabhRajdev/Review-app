@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useReviewStore } from './reviewStore';
 import PrimaryButton from '@/components/PrimaryButton';
@@ -7,46 +7,79 @@ import { tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    // Fallback for browsers that block clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
+
 export default function ReviewScreen() {
   const text = useReviewStore((s) => s.text);
   const updateText = useReviewStore((s) => s.updateText);
+
   const [copied, setCopied] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [autoCopied, setAutoCopied] = useState(false);
+  const autoCopyDone = useRef(false);
 
-  // Log on mount
-  useEffect(() => {
-    console.log('🔥 [ReviewScreen] MOUNTED');
-    console.log('📝 [ReviewScreen] Review text:', text);
-    console.log('📏 [ReviewScreen] Text length:', text?.length || 0);
-  }, []);
-
-  // NO AUTO REDIRECTS - always render something
-  const displayText = text && text.trim().length > 0 
-    ? text 
-    : 'Your review will appear here.';
+  const displayText = text?.trim() ? text : 'Your review will appear here.';
 
   const googleUrl =
     new URLSearchParams(location.search).get('gurl') ||
     'https://www.google.com/maps/place/Pure+Bean+Sharjah/@25.3057642,55.4684157,17z/data=!4m8!3m7!1s0x3e5f5fcd5f1573e1:0xb41d6947ccc86718!8m2!3d25.3057642!4d55.4684157!9m1!1b1!16s%2Fg%2F11yn5kcwp2?entry=ttu&g_ep=EgoyMDI2MDQwOC4wIKXMDSoASAFQAw%3D%3D';
-async function handleCopy() {
-    const textToCopy = text && text.trim().length > 0 ? text : displayText;
-    try {
-      await navigator.clipboard.writeText(textToCopy);
-    } catch {
-      // Fallback for browsers that block clipboard API
-      const ta = document.createElement('textarea');
-      ta.value = textToCopy;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
+
+  // Auto-copy as soon as a real review is available
+  useEffect(() => {
+    if (autoCopyDone.current) return;
+    const t = text?.trim();
+    if (!t) return;
+    autoCopyDone.current = true;
+    copyToClipboard(t).then(() => {
+      setAutoCopied(true);
+      audio.bullseye();
+      haptics.impact();
+      setTimeout(() => setAutoCopied(false), 3000);
+    });
+  }, [text]);
+
+  async function handleCopy() {
+    const t = text?.trim() ? text : displayText;
+    await copyToClipboard(t);
     setCopied(true);
     audio.bullseye();
     haptics.impact();
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleEditStart() {
+    audio.tap();
+    haptics.press();
+    setEditValue(text || '');
+    setIsEditing(true);
+  }
+
+  async function handleEditSave() {
+    audio.tap();
+    haptics.press();
+    updateText(editValue);
+    setIsEditing(false);
+    // Auto-copy the updated text immediately
+    await copyToClipboard(editValue);
+    setCopied(true);
+    audio.bullseye();
+    haptics.impact();
+    setTimeout(() => setCopied(false), 2500);
   }
 
   return (
@@ -59,40 +92,78 @@ async function handleCopy() {
           </svg>
         </div>
         <h2 className="text-display text-ink mb-1">Your review is ready</h2>
-        <p className="text-body-sm text-ink-secondary">Tap to edit, then copy and post.</p>
+
+        {/* Auto-copy indicator */}
+        <AnimatePresence mode="wait">
+          {autoCopied ? (
+            <motion.p key="copied"
+              className="text-body-sm text-success font-medium"
+              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}>
+              Copied to clipboard
+            </motion.p>
+          ) : (
+            <motion.p key="subtitle"
+              className="text-body-sm text-ink-secondary"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}>
+              Tap to edit, then paste and post.
+            </motion.p>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Review card */}
-      <div className="w-full rounded-card bg-surface border border-ink-ghost/20 shadow-card overflow-hidden">
+      <div className="w-full rounded-card bg-surface border border-ink-ghost/20 shadow-card overflow-hidden mb-5">
         <div className="h-0.5 w-full bg-primary" />
         <div className="p-5">
-          <textarea
-            className="w-full bg-transparent text-body leading-relaxed text-ink resize-none border-0 outline-none min-h-[180px]"
-            value={displayText}
-            onChange={(e) => updateText(e.target.value)}
-            spellCheck={false}
-          />
+          {isEditing ? (
+            <textarea
+              className="w-full bg-transparent text-body leading-relaxed text-ink resize-none border-0 outline-none min-h-[140px] w-full"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              autoFocus
+            />
+          ) : (
+            <p className="text-body leading-relaxed text-ink min-h-[80px] whitespace-pre-line">
+              {displayText}
+            </p>
+          )}
+        </div>
+
+        {/* Edit / Save row */}
+        <div className="px-5 pb-4 flex justify-end">
+          {isEditing ? (
+            <button
+              onClick={handleEditSave}
+              className="text-micro text-primary font-semibold"
+            >
+              Save &amp; Copy
+            </button>
+          ) : (
+            <button
+              onClick={handleEditStart}
+              className="text-micro text-ink-tertiary hover:text-ink-secondary transition-colors"
+            >
+              Edit
+            </button>
+          )}
         </div>
       </div>
 
       {/* Copy CTA */}
-      <div className="mt-5">
-        <PrimaryButton
-          onClick={handleCopy}
-          variant={copied ? 'primary' : 'primary'}
-        >
-          {copied ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-              Copied
-            </span>
-          ) : (
-            'Copy Review'
-          )}
-        </PrimaryButton>
-      </div>
+      <PrimaryButton onClick={handleCopy}>
+        {copied ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+            Copied
+          </span>
+        ) : (
+          'Copy Review'
+        )}
+      </PrimaryButton>
 
       {/* Platform link */}
       <div className="mt-3">
