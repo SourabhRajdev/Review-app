@@ -41,7 +41,7 @@ export default function EntryScreen() {
     go('transcriptReview');
   }
 
-  function handleVoiceStateChange(state: 'idle' | 'expanding' | 'listening' | 'processing' | 'done' | 'error') {
+  function handleVoiceStateChange(state: 'idle' | 'recording' | 'processing' | 'done' | 'error') {
     // Hide cards when voice interaction starts (but not on error or idle)
     setVoiceActive(state !== 'idle' && state !== 'error');
   }

@@ -461,6 +461,80 @@ app.get('/api/voice-token', async (_req, res) => {
   }
 });
 
+// ───────── AssemblyAI pre-recorded STT ─────────
+// Receives raw audio binary from the browser (MediaRecorder blob),
+// uploads to AssemblyAI /v2/upload, submits transcript job, polls until done.
+app.post('/api/voice-transcribe', express.raw({ type: '*/*', limit: '25mb' }), async (req, res) => {
+  if (!ASSEMBLYAI_API_KEY) {
+    return res.status(500).json({ error: 'ASSEMBLYAI_API_KEY not configured' });
+  }
+
+  const audioBuffer = req.body;
+  if (!audioBuffer || !audioBuffer.length) {
+    return res.status(400).json({ error: 'Empty audio body' });
+  }
+  console.log('[voice-transcribe] Received audio bytes:', audioBuffer.length);
+
+  const authHeaders = { authorization: ASSEMBLYAI_API_KEY };
+  const BASE = 'https://api.assemblyai.com';
+
+  // Step 1: Upload audio
+  let uploadUrl;
+  try {
+    const uploadRes = await fetch(`${BASE}/v2/upload`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/octet-stream' },
+      body: audioBuffer,
+    });
+    if (!uploadRes.ok) throw new Error(`Upload ${uploadRes.status}: ${await uploadRes.text()}`);
+    uploadUrl = (await uploadRes.json()).upload_url;
+    console.log('[voice-transcribe] Upload OK');
+  } catch (err) {
+    console.error('[voice-transcribe] Upload failed:', err.message);
+    return res.status(500).json({ error: 'AssemblyAI upload failed' });
+  }
+
+  // Step 2: Submit transcript job
+  let transcriptId;
+  try {
+    const submitRes = await fetch(`${BASE}/v2/transcript`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        audio_url: uploadUrl,
+        speech_models: ['universal-3-pro', 'universal-2'],
+        language_detection: true,
+      }),
+    });
+    if (!submitRes.ok) throw new Error(`Submit ${submitRes.status}: ${await submitRes.text()}`);
+    transcriptId = (await submitRes.json()).id;
+    console.log('[voice-transcribe] Job submitted, id:', transcriptId);
+  } catch (err) {
+    console.error('[voice-transcribe] Submit failed:', err.message);
+    return res.status(500).json({ error: 'Transcript submit failed' });
+  }
+
+  // Step 3: Poll until complete (max 30s)
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1500));
+    try {
+      const pollRes = await fetch(`${BASE}/v2/transcript/${transcriptId}`, { headers: authHeaders });
+      if (!pollRes.ok) continue;
+      const result = await pollRes.json();
+      console.log('[voice-transcribe] Poll status:', result.status);
+      if (result.status === 'completed') {
+        return res.json({ transcript: (result.text || '').trim() });
+      }
+      if (result.status === 'error') {
+        return res.status(500).json({ error: result.error || 'Transcription failed' });
+      }
+    } catch { /* transient, keep polling */ }
+  }
+
+  return res.status(504).json({ error: 'Transcription timed out' });
+});
+
 app.listen(PORT, () => {
   console.log(`reviewapp listening on http://localhost:${PORT}`);
   console.log(`model: ${MODEL}`);
