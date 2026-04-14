@@ -1,117 +1,83 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGuide, getApiKey, callGemini, sanitizeReview, CORS_HEADERS } from './_shared';
 
-const VOICE_SYSTEM_PROMPT = `You are the Review Generation Engine described in REVIEW_GENERATION_GUIDE.md (provided separately).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
-CRITICAL: Before generating, you MUST execute the Controlled Randomization Engine (§5) to avoid duplication.
+const SYSTEM_PROMPT = `You are a review generation engine. The customer will give you a raw voice transcript of their experience at a restaurant or café.
 
-Your task:
-1. Read the customer's raw voice transcript below.
-2. Extract EVERY signal you can identify from the transcript itself:
-   - business_name: Extract the exact name the customer mentions. If no business name is mentioned, use "this spot".
-   - neighbourhood / location: Extract any area, street, or neighbourhood mentioned. If none, omit it.
-   - items_ordered: Extract exact menu items mentioned.
-   - sensory descriptors, vibe, occasion, sentiment, disappointment, return intent, comparison cues.
-3. For signals not found in the transcript, use reasonable defaults:
-   - disappointment_chip: default to "nothing_perfect"
-   - comparison_chip: default to "better_than_usual"
-   - return_intent: infer from tone; default to "probably"
-4. If business_name or neighbourhood are provided in the metadata below the transcript, use those ONLY as a supplement.
-5. EXECUTE §5 CONTROLLED RANDOMIZATION ENGINE:
-   - Randomly select 3-5 Tier 2 signals (do NOT use all signals)
-   - Choose a structural variant (A/B/C/D)
-   - Assign expression styles to each signal
-   - Generate a random seed for this review
-6. Follow the REVIEW_GENERATION_GUIDE.md generation algorithm (§6) exactly:
-   STEP 1 -> validate extracted signals
-   STEP 2 -> determine tone
-   STEP 3 -> build Sentence 1 (THE ANCHOR) using selected variant
-   STEP 4 -> build Sentence 2 (THE PRODUCT SIGNAL) with selected signals only
-   STEP 5 -> build Sentence 3 (THE CLOSER) with selected signals only
-   STEP 6 -> verify all 9 SEO signals and invariants
-   STEP 7 -> run the human test
-   STEP 8 -> output
+Your job:
+1. Read the transcript and extract every signal: business name, location, items ordered, vibe, sentiment, return intent.
+2. Write exactly 3 sentences as a natural Google review.
 
-OUTPUT RULES (absolute):
-- Exactly 3 sentences. No more.
-- 35-54 words total (±2 for humanization noise).
+RULES (absolute):
+- Exactly 3 sentences. No more, no less.
+- 35-54 words total.
 - Never start with "I".
-- No banned words (amazing, wonderful, delightful, fantastic, incredible, etc.).
+- No banned words: amazing, wonderful, delightful, fantastic, incredible, awesome.
 - No exclamation marks.
-- NEVER use em dashes (— or --). Use commas, "but", "and", or "though" instead.
+- No em dashes (— or --). Use commas or "but" instead.
 - Past tense for the experience.
-- Plain text only. No labels, no quotes. Just the 3 sentences separated by newlines.
-- Sentence 2 MUST mention the exact item "at [business_name] [neighbourhood/location]".
-- Sentence 3 MUST contain a comparative signal.
-- NEVER invent a business name. Use ONLY what the customer said or what is in the metadata.
-- DO NOT use all signals — randomly exclude 3-5 Tier 2 signals per generation.
-- VARY structure — do not follow the same template every time.`;
+- Plain text only. No labels, no quotes, no bullet points.
+- Sentence 2 MUST mention a specific item and the place name.
+- Sentence 3 MUST contain a comparative or return-intent signal.
+- NEVER invent a business name. Use only what the customer said.
+- Output ONLY the 3 sentences separated by newlines. Nothing else.`;
+
+async function callGemini(transcript: string, bizName: string, hood: string): Promise<string> {
+  const meta = [bizName && `Business: ${bizName}`, hood && `Location: ${hood}`].filter(Boolean).join('\n');
+  const userPrompt = `VOICE TRANSCRIPT:\n"""\n${transcript.trim()}\n"""${meta ? `\n\nMETADATA (supplement only):\n${meta}` : ''}\n\nGenerate the 3-sentence review now.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
+
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: {
+        maxOutputTokens: 400,
+        temperature: 0.85,
+        topP: 0.95,
+        thinkingConfig: { thinkingBudget: 0 },
+      },
+    }),
+  });
+
+  if (!r.ok) throw new Error(`Gemini ${r.status}`);
+  const data = await r.json();
+  return (data?.candidates?.[0]?.content?.parts ?? [])
+    .map((p: { text?: string }) => p.text || '')
+    .join('')
+    .trim();
+}
+
+function sanitize(raw: string): string {
+  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+  const sentences = lines.filter(l => /[.!?]$/.test(l)).slice(0, 3);
+  return (sentences.length >= 2 ? sentences : lines.slice(0, 3)).join('\n');
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
-  Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
-  if (req.method === 'OPTIONS') return res.status(204).end();
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  if (req.method === 'OPTIONS') return res.status(204).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
 
+  const { transcript, business_name = '', neighbourhood = '' } = req.body || {};
+
+  if (!transcript?.trim()) return res.status(400).json({ error: 'transcript required' });
+  if (!GEMINI_API_KEY) return res.status(200).json({ review: transcript.trim(), model: 'no-key' });
+
   try {
-    const { transcript } = req.body || {};
-
-    if (!transcript || typeof transcript !== 'string' || !transcript.trim()) {
-      return res.status(400).json({ error: 'transcript is required' });
-    }
-
-    if (!getApiKey()) {
-      return res.json({
-        review: transcript.trim(),
-        model: 'local-fallback',
-        warning: 'No API key'
-      });
-    }
-
-    const guide = getGuide();
-    if (!guide) {
-      console.error('REVIEW_GENERATION_GUIDE.md not loaded');
-      return res.status(500).json({
-        error: 'Guide not available',
-        review: transcript.trim(),
-        model: 'none'
-      });
-    }
-
-    const bizName = req.body.business_name || '';
-    const hood = req.body.neighbourhood || '';
-
-    const metadataBlock = (bizName || hood)
-      ? `\nSUPPLEMENTARY METADATA (use only if the transcript does not mention a business name or location):\n${bizName ? `business_name: ${bizName}\n` : ''}${hood ? `neighbourhood: ${hood}\n` : ''}`
-      : '';
-
-    const userPrompt = `CUSTOMER VOICE TRANSCRIPT:
-"""
-${transcript.trim()}
-"""
-${metadataBlock}
-Extract ALL signals directly from the transcript above. Generate the 3-sentence SEO review following REVIEW_GENERATION_GUIDE.md exactly. Output ONLY the 3 sentences.`;
-
-    const raw = await callGemini(VOICE_SYSTEM_PROMPT, userPrompt, guide);
-    const review = sanitizeReview(raw || '');
-
-    if (!review) {
-      return res.json({
-        review: transcript.trim(),
-        model: 'local-fallback',
-        warning: 'AI returned empty'
-      });
-    }
-
-    res.json({ review, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error('voice-generate error:', message);
-    res.status(200).json({
-      review: (req.body?.transcript || '').trim(),
-      model: 'local-fallback',
-      warning: 'AI call failed'
-    });
+    const raw = await callGemini(transcript, business_name, neighbourhood);
+    const review = sanitize(raw);
+    if (!review) return res.status(200).json({ review: transcript.trim(), model: 'empty-response' });
+    return res.status(200).json({ review, model: GEMINI_MODEL });
+  } catch (err) {
+    console.error('voice-generate error:', err);
+    return res.status(200).json({ review: transcript.trim(), model: 'error-fallback' });
   }
 }
