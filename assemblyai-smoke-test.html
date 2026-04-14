@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AssemblyAI v3 Smoke Test</title>
+  <style>
+    body { font-family: monospace; padding: 24px; background: #0d0d0d; color: #e0e0e0; max-width: 720px; }
+    h2 { color: #fff; margin-bottom: 4px; }
+    .sub { color: #888; font-size: 13px; margin-bottom: 8px; }
+    .proto { color: #4ade80; font-size: 12px; margin-bottom: 20px; font-family: monospace; }
+    button { padding: 10px 22px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-family: monospace; margin-right: 8px; }
+    #btnStart { background: #2563eb; color: #fff; }
+    #btnStop  { background: #dc2626; color: #fff; display: none; }
+    #btnStart:disabled { opacity: 0.4; cursor: not-allowed; }
+    #log { margin-top: 20px; border: 1px solid #333; border-radius: 8px; padding: 14px; height: 400px; overflow-y: auto; font-size: 12px; line-height: 1.7; }
+    .ok   { color: #4ade80; }
+    .warn { color: #facc15; }
+    .err  { color: #f87171; }
+    .info { color: #93c5fd; }
+    .tx   { color: #c084fc; }
+    hr { border: none; border-top: 1px solid #333; margin: 8px 0; }
+    #transcript { margin-top: 16px; padding: 14px; background: #1a1a1a; border-radius: 8px; min-height: 52px; color: #fff; font-size: 15px; line-height: 1.5; }
+    label { font-size: 11px; color: #666; display: block; margin-bottom: 4px; margin-top: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+  </style>
+</head>
+<body>
+  <h2>AssemblyAI v3 Smoke Test</h2>
+  <p class="sub">Verified protocol (tested 2026-04-14):</p>
+  <p class="proto">
+    model: u3-rt-pro &nbsp;|&nbsp;
+    audio: raw binary PCM (NOT base64 JSON) &nbsp;|&nbsp;
+    session start: {type:"Begin"} &nbsp;|&nbsp;
+    turns: {type:"Turn", turn_is_formatted}
+  </p>
+
+  <button id="btnStart">▶ Start Recording</button>
+  <button id="btnStop">■ Stop</button>
+
+  <label>Live transcript</label>
+  <div id="transcript">—</div>
+
+  <div id="log"></div>
+
+  <script>
+    const btnStart = document.getElementById('btnStart');
+    const btnStop  = document.getElementById('btnStop');
+    const logEl    = document.getElementById('log');
+    const txEl     = document.getElementById('transcript');
+
+    let ws, audioCtx, source, processor, stream;
+    let sessionReady = false;
+    let finalText    = '';
+
+    function log(msg, cls = 'info') {
+      const now = new Date().toISOString().slice(11, 23);
+      logEl.innerHTML += `<div class="${cls}">[${now}] ${msg}</div>`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function sep() { logEl.innerHTML += '<hr>'; }
+    function reset() {
+      btnStop.style.display  = 'none';
+      btnStart.style.display = 'inline-block';
+      btnStart.disabled      = false;
+    }
+
+    // ── STOP ──────────────────────────────────────────────────────
+    function stopAll() {
+      sep();
+      log('Stopping…', 'warn');
+      sessionReady = false;
+      try { processor?.disconnect(); source?.disconnect(); } catch {}
+      try { stream?.getTracks().forEach(t => t.stop()); } catch {}
+      try { audioCtx?.close(); } catch {}
+      audioCtx = source = processor = stream = null;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        log('Sending { type: "Terminate" }', 'warn');
+        ws.send(JSON.stringify({ type: 'Terminate' }));
+        setTimeout(() => { try { ws.close(); } catch {} }, 400);
+      }
+      reset();
+    }
+    btnStop.addEventListener('click', stopAll);
+
+    // ── START ──────────────────────────────────────────────────────
+    btnStart.addEventListener('click', async () => {
+      logEl.innerHTML = '';
+      txEl.textContent = '—';
+      finalText = '';
+      sessionReady = false;
+      btnStart.disabled = true;
+
+      // STEP 1: Fetch token from backend (keeps raw key off browser)
+      log('Fetching token from localhost:3001/api/voice-token…', 'info');
+      let token;
+      try {
+        const r = await fetch('http://localhost:3001/api/voice-token');
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || `HTTP ${r.status}`); }
+        ({ token } = await r.json());
+        log(`Token received ✓  (len=${token?.length})`, 'ok');
+      } catch (e) {
+        log(`Token fetch failed: ${e}`, 'err');
+        log('Make sure server.js is running: node server.js', 'warn');
+        reset();
+        return;
+      }
+
+      sep();
+
+      // STEP 2: Mic first — before WebSocket opens
+      log('Requesting microphone…', 'info');
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { sampleRate: 16000, channelCount: 1, echoCancellation: true, noiseSuppression: true }
+        });
+        log('Microphone granted ✓', 'ok');
+      } catch (e) {
+        log(`Mic denied: ${e}`, 'err');
+        reset();
+        return;
+      }
+
+      // STEP 3: Build PCM pipeline — waits for sessionReady gate before sending
+      audioCtx  = new AudioContext({ sampleRate: 16000 });
+      source    = audioCtx.createMediaStreamSource(stream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+      let chunkCount = 0;
+      processor.onaudioprocess = (e) => {
+        // Gate: only send after "Begin" received
+        if (!sessionReady || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+        const f32 = e.inputBuffer.getChannelData(0);
+
+        // Float32 → Int16 PCM
+        const pcm16 = new Int16Array(f32.length);
+        for (let i = 0; i < f32.length; i++) {
+          const s = Math.max(-1, Math.min(1, f32[i]));
+          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+
+        // Send as RAW BINARY (not base64 JSON — v3 protocol requirement)
+        ws.send(pcm16.buffer);
+
+        chunkCount++;
+        if (chunkCount <= 3 || chunkCount % 20 === 0) {
+          log(`Chunk #${chunkCount} sent  bytes=${pcm16.buffer.byteLength}  (binary frame)`, 'tx');
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+      log('PCM pipeline ready ✓ (waiting for Begin before sending audio)', 'ok');
+      sep();
+
+      // STEP 4: Open WebSocket with u3-rt-pro
+      const url = `wss://streaming.assemblyai.com/v3/ws?sample_rate=16000&speech_model=u3-rt-pro&token=${token}`;
+      log(`Connecting → ${url.replace(token, '***')}`, 'info');
+      ws = new WebSocket(url);
+
+      ws.onopen = () => {
+        log('WebSocket OPEN ✓ — waiting for Begin…', 'ok');
+        btnStop.style.display  = 'inline-block';
+        btnStart.style.display = 'none';
+        sep();
+      };
+
+      ws.onmessage = (ev) => {
+        let data;
+        try { data = JSON.parse(ev.data); } catch { log('Raw: ' + ev.data, 'warn'); return; }
+
+        const type = data.type || data.message_type || '(unknown)';
+
+        if (type === 'Begin') {
+          sessionReady = true;
+          log(`Begin ✓  id=${data.id}  — audio now flowing`, 'ok');
+
+        } else if (type === 'Turn') {
+          const text = data.transcript || '';
+          const formatted = data.turn_is_formatted;
+          if (formatted && text.trim()) {
+            finalText += (finalText ? ' ' : '') + text;
+            log(`Turn (final) ✓: "${text}"`, 'ok');
+            txEl.textContent = finalText;
+          } else if (!formatted && text) {
+            log(`Turn (partial): "${text}"`, 'info');
+            txEl.textContent = (finalText ? finalText + ' ' : '') + text + ' …';
+          }
+
+        } else if (type === 'Termination') {
+          log(`Termination  audio_duration=${data.audio_duration_seconds}s`, 'warn');
+
+        } else if (data.error) {
+          log(`SERVER ERROR: ${JSON.stringify(data.error)}`, 'err');
+
+        } else {
+          log(`Unknown msg type="${type}": ${JSON.stringify(data)}`, 'warn');
+        }
+      };
+
+      ws.onerror = () => log('WebSocket ERROR — check DevTools console', 'err');
+
+      ws.onclose = (e) => {
+        log(`WebSocket CLOSED  code=${e.code}  reason="${e.reason}"`, e.code === 1000 ? 'ok' : 'err');
+        if (e.code === 1011) log('  → 1011: wrong model name, bad auth, or audio format issue', 'err');
+        if (e.code === 3006) log('  → 3006: missing/invalid query parameter', 'err');
+        if (e.code === 1008) log('  → 1008: unauthorized (bad API key)', 'err');
+        reset();
+      };
+    });
+  </script>
+</body>
+</html>

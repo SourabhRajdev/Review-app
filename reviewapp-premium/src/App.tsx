@@ -21,7 +21,7 @@ export default function App() {
 
   return (
     <div className="w-full min-h-[100dvh] bg-bg font-sans">
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {current === 'entry' && <EntryScreen key="entry" />}
         {current === 'voiceEntry' && <VoiceEntryScreen key="voiceEntry" />}
         {current === 'transcriptReview' && <TranscriptReviewScreen key="transcriptReview" />}

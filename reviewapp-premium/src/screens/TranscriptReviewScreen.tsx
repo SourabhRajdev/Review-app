@@ -25,10 +25,13 @@ export default function TranscriptReviewScreen() {
   const [hint, setHint] = useState('');
 
   useEffect(() => {
-    if (transcript && transcript.trim().length > 0) {
-      setLocalTranscript(transcript);
+    // Guard: if no transcript, kick back to entry — avoids blank screen
+    if (!transcript || transcript.trim().length === 0) {
+      go('entry');
+      return;
     }
-  }, [transcript]);
+    setLocalTranscript(transcript);
+  }, [transcript, go]);
 
   function handlePolishWithAI() {
     const textToUse = localTranscript || transcript;

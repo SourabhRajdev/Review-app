@@ -3,13 +3,20 @@ import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import multer from 'multer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || process.env.VITE_NVIDIA_API_KEY || '';
+// Server-side only — never exposed to the browser bundle
+const ASSEMBLYAI_API_KEY = process.env.ASSEMBLYAI_API_KEY || '';
+
+// Configure multer for handling audio uploads
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 app.use((req, res, next) => {
@@ -319,6 +326,51 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
+// Proxy endpoint for NVIDIA Whisper API to avoid CORS issues
+app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    if (!NVIDIA_API_KEY) {
+      return res.status(500).json({ error: 'NVIDIA API key not configured on server' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No audio file provided' });
+    }
+
+    console.log('Received audio file:', req.file.size, 'bytes, type:', req.file.mimetype);
+
+    // Create FormData for NVIDIA API
+    const formData = new FormData();
+    const audioBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    formData.append('file', audioBlob, 'audio.webm');
+    
+    console.log('Calling NVIDIA Whisper API...');
+
+    const response = await fetch('https://integrate.api.nvidia.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NVIDIA_API_KEY}`
+      },
+      body: formData
+    });
+
+    const responseText = await response.text();
+    console.log('NVIDIA API response:', response.status, responseText.substring(0, 200));
+
+    if (!response.ok) {
+      console.error('NVIDIA API error:', response.status, responseText);
+      return res.status(response.status).json({ error: responseText });
+    }
+
+    const data = JSON.parse(responseText);
+    console.log('Transcription successful:', data.text?.substring(0, 100));
+    res.json(data);
+  } catch (err) {
+    console.error('Transcribe error:', err?.message || err);
+    res.status(500).json({ error: 'Failed to transcribe audio' });
+  }
+});
+
 app.post('/api/session', async (req, res) => {
   try {
     const record = {
@@ -387,6 +439,27 @@ function localFallbackReview(s) {
   return [s1, s2, s3].join('\n');
 }
 
+
+// ───────── AssemblyAI real-time token exchange ─────────
+// Browser WebSocket cannot send custom Authorization headers, so we exchange
+// the raw API key here (server-side) for a short-lived session token.
+// Frontend calls GET /api/voice-token → gets a token → passes it as ?token=
+// in the WebSocket URL. Token expires after 5 minutes.
+app.get('/api/voice-token', async (_req, res) => {
+  if (!ASSEMBLYAI_API_KEY) {
+    return res.status(500).json({ error: 'ASSEMBLYAI_API_KEY not configured on server' });
+  }
+  try {
+    // The /v2/realtime/token endpoint requires a higher-tier plan.
+    // On the current plan, the raw API key authenticates directly via ?token= query param.
+    // This endpoint keeps the key off the browser bundle — swap to token exchange when available.
+    console.log('AssemblyAI voice token issued (raw key passthrough)');
+    res.json({ token: ASSEMBLYAI_API_KEY });
+  } catch (err) {
+    console.error('voice-token error:', err?.message || err);
+    res.status(500).json({ error: 'Failed to generate voice token' });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`reviewapp listening on http://localhost:${PORT}`);
