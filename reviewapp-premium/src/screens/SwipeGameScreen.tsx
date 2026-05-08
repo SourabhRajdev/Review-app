@@ -32,7 +32,7 @@ export default function SwipeGameScreen() {
     haptics.tick();
     setTimeout(() => {
       if (currentIndex + 1 >= QUESTIONS.length) {
-        go(mode === 'easy' ? 'conveyorBelt' : 'generating');
+        go(mode === 'hard' ? 'sparkSlice' : 'generating');
       } else {
         setCurrentIndex((i) => i + 1);
       }
@@ -44,7 +44,10 @@ export default function SwipeGameScreen() {
     <ScreenShell hideProgress hideBack>
       <motion.div className="flex-1 flex flex-col justify-center" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <div className="text-center mb-6">
-          <span className="inline-block text-caption font-semibold text-primary bg-primary-muted px-3 py-1 rounded-chip mb-3">
+          <span
+            className="inline-block text-label font-bold text-primary px-3 py-1.5 rounded-full mb-3"
+            style={{ background: 'rgba(198,124,78,0.1)', border: '1px solid rgba(198,124,78,0.2)' }}
+          >
             Round 1 — Swipe to Rate
           </span>
           <h2 className="text-display text-ink">Quick impressions</h2>
@@ -53,18 +56,43 @@ export default function SwipeGameScreen() {
 
         <div className="relative flex items-center justify-center" style={{ minHeight: 300 }}>
           {currentIndex + 1 < QUESTIONS.length && (
-            <div className="absolute bg-surface border border-ink-ghost/10 p-6 rounded-card shadow-card" style={{ width: '90%', opacity: 0.4, transform: 'translateY(6px) scale(0.95)' }} />
+            <div
+              className="absolute p-6 rounded-card"
+              style={{
+                width: '90%',
+                opacity: 0.3,
+                transform: 'translateY(6px) scale(0.95)',
+                background: 'rgba(255,255,255,0.6)',
+                border: '1px solid rgba(200,170,140,0.12)',
+              }}
+            />
           )}
           <AnimatePresence mode="wait">
             {current && !isTransitioning && (
               <SwipeCard key={current.id} onSwipeLeft={() => handleSwipe(false)} onSwipeRight={() => handleSwipe(true)} leftLabel={current.leftLabel} rightLabel={current.rightLabel}>
-                <div className="bg-surface border border-ink-ghost/20 rounded-card shadow-card p-8 text-center w-full max-w-sm mx-auto">
+                <div
+                  className="rounded-card p-8 text-center w-full max-w-sm mx-auto"
+                  style={{
+                    background: '#FFFFFF',
+                    border: '1px solid rgba(200,170,140,0.2)',
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
+                  }}
+                >
                   <span className="text-5xl block mb-4">{current.icon}</span>
                   <h3 className="text-heading text-ink mb-2">{current.text}</h3>
                   <p className="text-caption text-ink-tertiary">Swipe right for Yes, left for No</p>
                   <div className="flex items-center justify-center gap-1.5 mt-6">
                     {QUESTIONS.map((q, i) => (
-                      <div key={q.id} className={`h-2 rounded-full transition-all duration-300 ${i < currentIndex ? 'bg-primary w-2' : i === currentIndex ? 'bg-primary w-5' : 'bg-surface-secondary w-2'}`} />
+                      <div
+                        key={q.id}
+                        className={`h-2 rounded-full transition-all duration-300 ${i === currentIndex ? 'w-5' : 'w-2'}`}
+                        style={i < currentIndex
+                          ? { background: 'rgba(198,124,78,0.5)' }
+                          : i === currentIndex
+                            ? { background: 'linear-gradient(90deg, #E8B896, #C67C4E)' }
+                            : { background: 'rgba(200,170,140,0.2)' }
+                        }
+                      />
                     ))}
                   </div>
                 </div>

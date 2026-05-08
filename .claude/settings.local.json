@@ -11,7 +11,32 @@
       "Bash(npx tsc:*)",
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
       "Bash(/Users/sourabhrajdev/Desktop/reviewapp/reviewapp-premium/node_modules/.bin/tsc --noEmit --pretty false)",
-      "Bash(/Users/sourabhrajdev/Desktop/reviewapp/reviewapp-premium/node_modules/.bin/vite build:*)"
+      "Bash(/Users/sourabhrajdev/Desktop/reviewapp/reviewapp-premium/node_modules/.bin/vite build:*)",
+      "Bash(ls /Users/sourabhrajdev/Desktop/reviewapp/*.env*)",
+      "Bash(ls /Users/sourabhrajdev/Desktop/reviewapp/.env*)",
+      "Bash(curl -s -X POST http://localhost:3000/api/voice-generate -H 'Content-Type: application/json' -d '{\"transcript\":\"hello this is a test\"}')",
+      "Bash(curl -v -X POST http://localhost:3000/api/voice-generate -H 'Content-Type: application/json' -d '{\"transcript\":\"hello\"}')",
+      "Bash(curl -s http://localhost:3000/)",
+      "Bash(curl -s -X GET http://localhost:3000/api/generate)",
+      "Bash(lsof -i :3000 -sTCP:LISTEN)",
+      "Bash(lsof -i :5173 -sTCP:LISTEN)",
+      "Bash(ps -p 4681 -o pid,command)",
+      "Bash(ps -p 7388 -o pid,command)",
+      "Bash(kill 7388)",
+      "Bash(curl -s -X POST http://localhost:3001/api/voice-generate -H 'Content-Type: application/json' -d '{\"transcript\":\"had a flat white at Blue Bottle in the Marina, it was smooth and not too bitter, will definitely come back\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(npm run:*)",
+      "Read(//private/tmp/cafe-menu-magic/src/**)",
+      "Read(//tmp/cafe-menu-magic/src/**)",
+      "Bash(curl -s \"https://cafe-menu-magic-nine.vercel.app/assets/index-W2ozuuQ7.js\")",
+      "Bash(python3 -c \"import sys, re; content = sys.stdin.read\\(\\); matches = re.findall\\(r'\\(rounds|questions|difficulty|easy|hard|medium|Round \\\\d|Question \\\\d\\)[^,}]*', content\\); print\\('\\\\n'.join\\(set\\(matches[:50]\\)\\)\\)\")",
+      "Bash(python3)",
+      "Bash(grep -oE '\\\\{id:\"[^\"]+\",text:\"[^\"]*\",emoji:\"[^\"]*\",positiveReview:\"[^\"]*\",negativeReview:\"[^\"]*\"\\\\}')",
+      "Bash(grep -oE '\\\\{id:\"[^\"]+\",text:\"[^\"]*\",emoji:\"[^\"]*\"\\(,positiveReview:\"[^\"]*\",negativeReview:\"[^\"]*\"\\)?\\\\}')",
+      "Bash(grep -o '{id:\"[^\"]*\",text:\"[^\"]*\"')",
+      "Bash(grep -o '\\\\[{x:[0-9]*,y:[0-9]*,text:\"[^\"]*\"[^}]*}' -a)",
+      "Bash(grep -oE 'text:\"[^\"]{5,100}\"')",
+      "WebFetch(domain:cafe-menu-magic-nine.vercel.app)"
     ]
   }
 }

@@ -3,9 +3,11 @@ import type { ScreenId } from './types';
 
 // Ordered flow for direction detection
 const FLOW_ORDER: ScreenId[] = [
-  'entry', 'voiceEntry', 'transcriptReview',
-  'swipeGame', 'conveyorBelt', 'bubblePop', 'vibeGame', 'serviceGame', 'slingshotGame',
-  'darts', 'stackTower', 'sparkSlice', 'basketball',
+  'entry', 'aboutYou', 'orderSelection', 'productGame', 'round2', 'basketball', 'vibeGame', 'slingshotGame',
+  'shellGame', 'spinWheel',
+  'voiceEntry', 'transcriptReview',
+  'swipeGame', 'conveyorBelt', 'bubblePop', 'serviceGame',
+  'darts', 'stackTower', 'sparkSlice',
   'generating', 'review'
 ];
 

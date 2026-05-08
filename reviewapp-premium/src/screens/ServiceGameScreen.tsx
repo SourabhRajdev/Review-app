@@ -10,6 +10,7 @@ import { useGameStore } from '@/architecture/game/store';
 import { spring, tapScale } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
+import { spotlightHandlers, SpotlightOverlay } from '@/components/ui/spotlight-card';
 
 const OPTIONS = [
   { id: 'solo_work', label: 'Solo work', emoji: '💻', sub: 'Quiet focus time' },
@@ -43,16 +44,17 @@ export default function ServiceGameScreen() {
       >
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-[13px] font-semibold mb-3">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-primary text-label font-bold mb-3"
+            style={{ background: 'rgba(198,124,78,0.1)', border: '1px solid rgba(198,124,78,0.2)' }}
+          >
             <span>🎯</span>
             <span>Round 5 — Recommend</span>
           </div>
 
-          <h2 className="text-[26px] font-bold text-ink mb-2">
-            Perfect for?
-          </h2>
+          <h2 className="text-display text-ink mb-2">Perfect for?</h2>
 
-          <p className="text-[15px] text-ink/60">
+          <p className="text-body-sm text-ink-secondary">
             Who would you bring here?
           </p>
         </div>
@@ -65,40 +67,53 @@ export default function ServiceGameScreen() {
             return (
               <motion.button
                 key={opt.id}
-                className={`
-                  relative w-full rounded-2xl px-5 py-4 text-left cursor-pointer
-                  transition-all duration-200
-                  ${isSelected
-                    ? 'bg-surface shadow-elevated ring-2 ring-primary/20'
-                    : 'bg-surface border border-ink/5 shadow-card hover:shadow-elevated'
-                  }
-                  ${isDimmed ? 'opacity-20 pointer-events-none' : ''}
-                `}
+                {...(!selected ? spotlightHandlers() : {})}
+                className="relative overflow-hidden w-full rounded-2xl px-5 py-4 text-left cursor-pointer"
+                style={isSelected ? {
+                  background: '#FFF8F3',
+                  border: '1px solid rgba(198,124,78,0.45)',
+                  boxShadow: '0 0 0 3px rgba(198,124,78,0.12), 0 4px 20px rgba(0,0,0,0.06)',
+                } : {
+                  background: '#FFFFFF',
+                  border: '1px solid rgba(200,170,140,0.2)',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 20px rgba(0,0,0,0.07)',
+                }}
                 animate={{
-                  opacity: isDimmed ? 0.2 : 1,
+                  opacity: isDimmed ? 0.25 : 1,
                   scale: isSelected ? 1.02 : 1,
                 }}
                 whileTap={selected ? undefined : tapScale.whileTap}
                 onClick={() => pick(opt.id)}
                 disabled={!!selected}
               >
+                {!selected && <SpotlightOverlay color={isSelected ? 'coffee' : 'warm'} size={120} />}
                 <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0 text-2xl">
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl"
+                    style={isSelected ? {
+                      background: 'rgba(198,124,78,0.1)',
+                      border: '1px solid rgba(198,124,78,0.2)',
+                    } : {
+                      background: '#FBF7F4',
+                      border: '1px solid rgba(200,170,140,0.15)',
+                    }}
+                  >
                     {opt.emoji}
                   </div>
                   <div>
-                    <p className="text-[16px] font-semibold text-ink">{opt.label}</p>
-                    <p className="text-[13px] text-ink/60 mt-0.5">{opt.sub}</p>
+                    <p className="text-body font-semibold text-ink">{opt.label}</p>
+                    <p className="text-label text-ink-secondary mt-0.5">{opt.sub}</p>
                   </div>
                 </div>
                 {isSelected && (
                   <motion.div
-                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-primary flex items-center justify-center"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg, #E8B896, #C67C4E)' }}
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={spring.snappy}
                   >
-                    <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="#FFFFFF" strokeWidth={3}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </motion.div>

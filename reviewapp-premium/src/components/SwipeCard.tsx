@@ -16,6 +16,11 @@ interface Props {
 const THRESHOLD = 60;
 const VELOCITY_THRESHOLD = 0.4;
 
+// ── Color constants — defined once, no scattered hex ──
+// These are used in JS-driven inline styles (canvas-style operations).
+const ERROR_RGB = '192, 57, 43';    // --color-error: #C0392B
+const SUCCESS_RGB = '26, 122, 74';  // --color-success: #1A7A4A
+
 export default function SwipeCard({
   onSwipeLeft,
   onSwipeRight,
@@ -160,9 +165,9 @@ export default function SwipeCard({
         style={{
           opacity: leftOpacity,
           transform: `scale(${0.8 + leftOpacity * 0.2})`,
-          borderColor: '#DC2626',
-          color: '#DC2626',
-          background: 'rgba(220,38,38,0.1)',
+          borderColor: `rgb(${ERROR_RGB})`,
+          color: `rgb(${ERROR_RGB})`,
+          background: `rgba(${ERROR_RGB}, 0.1)`,
         }}
       >
         {leftLabel}
@@ -174,23 +179,23 @@ export default function SwipeCard({
         style={{
           opacity: rightOpacity,
           transform: `scale(${0.8 + rightOpacity * 0.2})`,
-          borderColor: '#4CAF50',
-          color: '#4CAF50',
-          background: 'rgba(76,175,80,0.1)',
+          borderColor: `rgb(${SUCCESS_RGB})`,
+          color: `rgb(${SUCCESS_RGB})`,
+          background: `rgba(${SUCCESS_RGB}, 0.1)`,
         }}
       >
         {rightLabel}
       </div>
 
-      {/* Glow effect */}
+      {/* Directional glow effect */}
       <div
         className="absolute inset-0 rounded-2xl pointer-events-none"
         style={{
           boxShadow:
             rightOpacity > 0
-              ? `0 0 ${20 + rightOpacity * 20}px rgba(76,175,80,${rightOpacity * 0.3})`
+              ? `0 0 ${20 + rightOpacity * 20}px rgba(${SUCCESS_RGB}, ${rightOpacity * 0.3})`
               : leftOpacity > 0
-                ? `0 0 ${20 + leftOpacity * 20}px rgba(220,38,38,${leftOpacity * 0.3})`
+                ? `0 0 ${20 + leftOpacity * 20}px rgba(${ERROR_RGB}, ${leftOpacity * 0.3})`
                 : 'none',
         }}
       />

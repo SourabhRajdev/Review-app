@@ -1,43 +1,170 @@
-// SLINGSHOT GAME SCREEN
-// Pull slingshot to aim at YES/NO jars, smash to answer.
-// Phrases spill out — user taps one to include in review.
-// After all questions → generating screen.
-
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useGameStore } from '@/architecture/game/store';
+import { useLuckStore } from '@/architecture/luck/store';
 import Slingshot from '@/components/Slingshot';
 import { spring } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
 
-interface VerdictQuestion {
-  id: string;
-  text: string;
-  yesPhrases: string[];
-  noPhrases: string[];
+// ══════════════════════════════════════════════════════════════════════════════
+// ⚙️  PHYSICS ENGINE - PRODUCTION LEVEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PHYSICS = {
+  GRAVITY: 0.0025,              // Increased gravity for faster drop
+  AIR_RESISTANCE: 0.996,        // Slightly more resistance
+  MIN_POWER: 0.25,              // Minimum pull to fire (25%)
+  POWER_MULTIPLIER: 4.5,        // INCREASED: Velocity = power × 4.5 (was 1.8)
+  TRAJECTORY_SAMPLES: 60,       // Points to calculate for trajectory preview
+  WIND_CHANGE_INTERVAL: 4000,  // Wind changes every 4 seconds
+  WIND_MAX_FORCE: 0.0015,       // Increased wind effect
+} as const;
+
+const JAR_POSITIONS = [
+  { x: 12.5, y: 22, label: 'Left' },
+  { x: 37.5, y: 22, label: 'Center-Left' },
+  { x: 62.5, y: 22, label: 'Center-Right' },
+  { x: 87.5, y: 22, label: 'Right' },
+] as const;
+
+const HIT_RADIUS = 8; // Percentage units for collision detection
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🌬️  WIND SYSTEM
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface Wind {
+  force: number;      // -1 to 1 (negative = left, positive = right)
+  direction: 'left' | 'right' | 'calm';
+  strength: 'calm' | 'light' | 'medium' | 'strong';
 }
 
-const QUESTIONS: VerdictQuestion[] = [
+function generateWind(): Wind {
+  const roll = Math.random();
+  let force: number;
+  let strength: Wind['strength'];
+  
+  if (roll < 0.15) {
+    // 15% - Calm
+    force = (Math.random() - 0.5) * 0.1;
+    strength = 'calm';
+  } else if (roll < 0.50) {
+    // 35% - Light wind
+    force = (Math.random() - 0.5) * 0.4;
+    strength = 'light';
+  } else if (roll < 0.85) {
+    // 35% - Medium wind
+    force = (Math.random() - 0.5) * 0.7;
+    strength = 'medium';
+  } else {
+    // 15% - Strong wind (gambling element!)
+    force = (Math.random() - 0.5) * 1.0;
+    strength = 'strong';
+  }
+  
+  const direction = force < -0.05 ? 'left' : force > 0.05 ? 'right' : 'calm';
+  
+  return { force, direction, strength };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎯  TRAJECTORY CALCULATION
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface TrajectoryPoint {
+  x: number;
+  y: number;
+}
+
+function calculateTrajectory(
+  pullX: number,
+  pullY: number,
+  windForce: number
+): TrajectoryPoint[] {
+  const power = pullY;
+  if (power < PHYSICS.MIN_POWER) return [];
+  
+  const angle = pullX; // -1 (left) to 1 (right)
+  let vx = angle * power * PHYSICS.POWER_MULTIPLIER * 0.8;
+  let vy = -power * PHYSICS.POWER_MULTIPLIER;
+  
+  let x = 50; // Start at center (50%)
+  let y = 82; // Start at slingshot position (82% from top)
+  
+  const points: TrajectoryPoint[] = [{ x, y }];
+  
+  for (let i = 0; i < PHYSICS.TRAJECTORY_SAMPLES; i++) {
+    // Apply physics
+    vy += PHYSICS.GRAVITY;
+    vx *= PHYSICS.AIR_RESISTANCE;
+    vy *= PHYSICS.AIR_RESISTANCE;
+    
+    // Apply wind
+    vx += windForce * PHYSICS.WIND_MAX_FORCE * 100;
+    
+    x += vx;
+    y += vy;
+    
+    // Stop if out of bounds or hit ground
+    if (y > 100 || x < 0 || x > 100 || y < 0) break;
+    
+    points.push({ x, y });
+  }
+  
+  return points;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎲  HIT DETECTION - GAMBLING ALGORITHM
+// ══════════════════════════════════════════════════════════════════════════════
+
+function checkHit(trajectory: TrajectoryPoint[]): number | null {
+  // Check each point in trajectory against jar positions
+  for (const point of trajectory) {
+    // Only check points near jar height (within 10% vertical range)
+    if (Math.abs(point.y - JAR_POSITIONS[0].y) > 10) continue;
+    
+    for (let i = 0; i < JAR_POSITIONS.length; i++) {
+      const jar = JAR_POSITIONS[i];
+      const distance = Math.sqrt(
+        Math.pow(point.x - jar.x, 2) + Math.pow(point.y - jar.y, 2)
+      );
+      
+      if (distance < HIT_RADIUS) {
+        return i; // HIT!
+      }
+    }
+  }
+  
+  return null; // MISS
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊  GAME DATA
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 📊  GAME DATA
+// ══════════════════════════════════════════════════════════════════════════════
+
+const ROUNDS = [
   {
     id: 'return',
-    text: 'Coming back?',
-    yesPhrases: ['My new regular', 'Definitely returning', 'See you soon', 'Already planning next visit'],
-    noPhrases: ['Maybe someday', 'Not sure yet', 'Once was enough', 'Exploring other spots'],
+    question: 'Would you come back?',
+    answers: ['Definitely returning!', 'My new regular', 'Maybe someday', 'Once was enough'],
   },
   {
-    id: 'compare',
-    text: 'How does it compare?',
-    yesPhrases: ['Best in the area', 'Better than my usual', 'My new favorite', 'Nothing like it nearby'],
-    noPhrases: ['My usual spot wins', 'About average', 'Nothing special', 'Has potential though'],
+    id: 'recommend',
+    question: 'Would you recommend it?',
+    answers: ['Highly recommend!', 'Must try!', 'Not for everyone', 'Would skip'],
   },
   {
-    id: 'occasion',
-    text: 'What brought you in?',
-    yesPhrases: ['Morning ritual stop', 'Been wanting to try', 'Friend recommended it', 'Planned visit'],
-    noPhrases: ['Just walked past', 'Killing time', 'Random discovery', 'Curiosity got me'],
+    id: 'price',
+    question: 'Was it worth the price?',
+    answers: ['Worth every penny', 'Great value!', 'A bit pricey', 'Overpriced'],
   },
 ];
 
@@ -50,152 +177,431 @@ interface SpilledPhrase {
   delay: number;
 }
 
+interface ProjectileState {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  trail: TrajectoryPoint[];
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🎮  MAIN COMPONENT
+// ══════════════════════════════════════════════════════════════════════════════
+
 export default function SlingshotGameScreen() {
   const go = useNavigation((s) => s.go);
   const addSlingshotAnswer = useGameStore((s) => s.addSlingshotAnswer);
-  const mode = useGameStore((s) => s.mode);
+  const setSlingshotLuck = useLuckStore((s) => s.setSlingshotLuck);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  // ── Game state ──
+  const [roundIdx, setRoundIdx] = useState(0);
+  const [phase, setPhase] = useState<'aiming' | 'flying' | 'hit' | 'miss' | 'complete'>('aiming');
+  const [retryCount, setRetryCount] = useState(0); // Track retries per round
 
-  // Slingshot physics
+  // ── Slingshot state ──
   const [pullX, setPullX] = useState(0);
   const [pullY, setPullY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [fired, setFired] = useState(false);
 
-  // Projectile
-  const [projectilePos, setProjectilePos] = useState<{ x: number; y: number } | null>(null);
-  const [projectileFlying, setProjectileFlying] = useState(false);
-
-  // Jar state
-  const [brokenJar, setBrokenJar] = useState<'yes' | 'no' | null>(null);
+  // ── Wind state ──
+  const [wind, setWind] = useState<Wind>(generateWind());
+  
+  // ── Projectile state ──
+  const [projectile, setProjectile] = useState<ProjectileState | null>(null);
+  const [hitAnswerIdx, setHitAnswerIdx] = useState<number | null>(null);
+  
+  // ── UI state ──
   const [spilled, setSpilled] = useState<SpilledPhrase[]>([]);
   const [shaking, setShaking] = useState(false);
-  const [waitingForPhrase, setWaitingForPhrase] = useState(false);
-  const [pickedPhrase, setPickedPhrase] = useState<string | null>(null);
+  const [pickedAnswer, setPickedAnswer] = useState<string | null>(null);
+  const [showPowerWarning, setShowPowerWarning] = useState(false);
 
+  // ── Refs ──
   const arenaRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const lastPullYBucket = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const windTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const currentQuestion = QUESTIONS[currentIndex];
+  const currentRound = ROUNDS[roundIdx];
+
+  // ── Wind system: Change wind periodically ──
+  useEffect(() => {
+    windTimerRef.current = setInterval(() => {
+      if (phase === 'aiming') {
+        setWind(generateWind());
+        haptics.bump();
+      }
+    }, PHYSICS.WIND_CHANGE_INTERVAL);
+
+    return () => {
+      if (windTimerRef.current) clearInterval(windTimerRef.current);
+    };
+  }, [phase]);
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🎯  POINTER HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════════
 
   function handlePointerDown(e: React.PointerEvent) {
-    if (brokenJar || projectileFlying || waitingForPhrase) return;
+    if (phase !== 'aiming') return;
     const rect = arenaRef.current?.getBoundingClientRect();
     if (!rect) return;
     const relY = (e.clientY - rect.top) / rect.height;
     const relX = (e.clientX - rect.left) / rect.width;
-    if (relY < 0.45 || relX < 0.2 || relX > 0.8) return;
+    if (relY < 0.4 || relX < 0.1 || relX > 0.9) return;
 
     setIsDragging(true);
+    setShowPowerWarning(false);
     dragStart.current = { x: e.clientX, y: e.clientY };
+    lastPullYBucket.current = 0;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   }
 
   function handlePointerMove(e: React.PointerEvent) {
-    if (!isDragging || !dragStart.current || brokenJar || projectileFlying || waitingForPhrase) return;
+    if (!isDragging || !dragStart.current) return;
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
-    const maxDrag = 120;
-    setPullX(Math.max(-1, Math.min(1, -dx / maxDrag)));
-    setPullY(Math.max(0, Math.min(1, dy / maxDrag)));
+    const maxDrag = 140;
+    const newPullX = Math.max(-1, Math.min(1, -dx / maxDrag));
+    const newPullY = Math.max(0, Math.min(1, dy / maxDrag));
+
+    setPullX(newPullX);
+    setPullY(newPullY);
+
+    // Escalating haptic feedback
+    const bucket = Math.floor(newPullY / 0.08);
+    if (bucket > lastPullYBucket.current) {
+      if (newPullY < 0.18) haptics.slingshotDragLight();
+      else if (newPullY < 0.38) haptics.slingshotDragMedium();
+      else haptics.slingshotDragHeavy();
+      lastPullYBucket.current = bucket;
+    }
   }
 
   function handlePointerUp() {
-    if (!isDragging || brokenJar || projectileFlying || waitingForPhrase) return;
+    if (!isDragging) return;
     setIsDragging(false);
     dragStart.current = null;
 
-    if (pullY < 0.15) {
+    // Check minimum power requirement
+    if (pullY < PHYSICS.MIN_POWER) {
       setPullX(0);
       setPullY(0);
+      setShowPowerWarning(true);
+      haptics.bump();
+      setTimeout(() => setShowPowerWarning(false), 2000);
       return;
     }
 
-    fireProjectile(pullX >= 0 ? 'yes' : 'no');
+    fire();
   }
 
-  function fireProjectile(target: 'yes' | 'no') {
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🚀  FIRE PROJECTILE - REAL PHYSICS SIMULATION
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  function fire() {
     setFired(true);
-    setProjectileFlying(true);
-    setProjectilePos({ x: target === 'no' ? 15 : 85, y: 28 });
+    setPhase('flying');
     audio.tap();
-    haptics.press();
-    setPullX(0);
-    setPullY(0);
+    haptics.slingshotRelease();
 
+    // Calculate initial velocity
+    const power = pullY;
+    const angle = pullX;
+    let vx = angle * power * PHYSICS.POWER_MULTIPLIER * 0.8;
+    let vy = -power * PHYSICS.POWER_MULTIPLIER;
+
+    // Calculate full trajectory for hit detection
+    const fullTrajectory = calculateTrajectory(pullX, pullY, wind.force);
+    const hitIdx = checkHit(fullTrajectory);
+
+    // Initialize projectile state
+    const initialProjectile: ProjectileState = {
+      x: 50,
+      y: 82,
+      vx,
+      vy,
+      trail: [],
+    };
+
+    setProjectile(initialProjectile);
+
+    // Animate projectile with real physics
+    let currentProjectile = { ...initialProjectile };
+    let frameCount = 0;
+    const maxFrames = 120;
+
+    const animate = () => {
+      frameCount++;
+
+      // Apply physics
+      currentProjectile.vy += PHYSICS.GRAVITY;
+      currentProjectile.vx *= PHYSICS.AIR_RESISTANCE;
+      currentProjectile.vy *= PHYSICS.AIR_RESISTANCE;
+
+      // Apply wind force
+      currentProjectile.vx += wind.force * PHYSICS.WIND_MAX_FORCE * 100;
+
+      // Update position
+      currentProjectile.x += currentProjectile.vx;
+      currentProjectile.y += currentProjectile.vy;
+
+      // Add to trail
+      currentProjectile.trail.push({ x: currentProjectile.x, y: currentProjectile.y });
+      if (currentProjectile.trail.length > 15) currentProjectile.trail.shift();
+
+      setProjectile({ ...currentProjectile });
+
+      // Check if hit jar
+      if (hitIdx !== null) {
+        const jar = JAR_POSITIONS[hitIdx];
+        const distance = Math.sqrt(
+          Math.pow(currentProjectile.x - jar.x, 2) + 
+          Math.pow(currentProjectile.y - jar.y, 2)
+        );
+
+        if (distance < HIT_RADIUS) {
+          // HIT!
+          if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+          smashJar(hitIdx);
+          return;
+        }
+      }
+
+      // Check if out of bounds or max frames
+      if (
+        currentProjectile.y > 100 ||
+        currentProjectile.x < -10 ||
+        currentProjectile.x > 110 ||
+        currentProjectile.y < -10 ||
+        frameCount > maxFrames
+      ) {
+        // MISS!
+        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+        handleMiss();
+        return;
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }
+
+  function handleMiss() {
+    setPhase('miss');
+    setProjectile(null);
+    audio.tap();
+    haptics.slingshotMiss();
     setTimeout(() => {
-      smashJar(target);
-      setProjectileFlying(false);
-      setProjectilePos(null);
-    }, 350);
+      setPullX(0);
+      setPullY(0);
+      setFired(false);
+    }, 100);
   }
 
-  function handleJarTap(type: 'yes' | 'no') {
-    if (brokenJar || projectileFlying || waitingForPhrase) return;
-    setPullX(type === 'yes' ? 0.5 : -0.5);
-    setPullY(0.6);
-    setIsDragging(false);
-    setTimeout(() => fireProjectile(type), 200);
-  }
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 💥  JAR SMASH & GAME FLOW
+  // ══════════════════════════════════════════════════════════════════════════════
 
-  function smashJar(type: 'yes' | 'no') {
-    setBrokenJar(type);
+  function smashJar(answerIdx: number) {
+    const answer = currentRound.answers[answerIdx];
+    setPhase('hit');
+    setHitAnswerIdx(answerIdx);
+    setProjectile(null);
     setShaking(true);
-    haptics.impact();
+    haptics.jarCrack();
     audio.bullseye();
 
     setTimeout(() => setShaking(false), 500);
 
-    const phrases = type === 'yes' ? currentQuestion.yesPhrases : currentQuestion.noPhrases;
-    setSpilled(
-      phrases.map((text, i) => ({
-        text,
-        id: `phrase-${currentIndex}-${i}`,
-        x: (type === 'no' ? 5 : 50) + Math.random() * 25,
-        y: 50 + i * 11,
-        rotation: (Math.random() - 0.5) * 20,
-        delay: 0.15 + i * 0.12,
-      }))
-    );
-    setWaitingForPhrase(true);
-    setPickedPhrase(null);
+    setSpilled([
+      {
+        text: answer,
+        id: `answer-${answerIdx}`,
+        x: 50 + (Math.random() - 0.5) * 30,
+        y: 60,
+        rotation: (Math.random() - 0.5) * 15,
+        delay: 0.2,
+      },
+    ]);
+
+    setTimeout(() => {
+      handleAnswerPick(answer, answerIdx);
+    }, 1200);
   }
 
-  function handlePhrasePick(phrase: string) {
-    if (pickedPhrase) return;
-    setPickedPhrase(phrase);
+  function handleAnswerPick(answer: string, answerIdx: number) {
+    if (pickedAnswer) return;
+    setPickedAnswer(answer);
     audio.tick();
     haptics.tick();
 
     addSlingshotAnswer({
-      questionId: currentQuestion.id,
-      question: currentQuestion.text,
-      positive: brokenJar === 'yes',
-      phrase,
+      questionId: currentRound.id,
+      question: currentRound.question,
+      positive: answerIdx < 2,
+      phrase: answer,
     });
 
     setTimeout(() => {
-      if (currentIndex + 1 >= QUESTIONS.length) {
-        go(mode === 'easy' ? 'generating' : 'basketball');
-      } else {
-        resetForNext();
-      }
+      advanceRound();
     }, 800);
   }
 
-  function resetForNext() {
-    setBrokenJar(null);
+  function advanceRound() {
+    if (roundIdx < ROUNDS.length - 1) {
+      setRoundIdx(roundIdx + 1);
+      setRetryCount(0); // Reset retry count for new round
+      resetForNextRound();
+    } else {
+      finishGame();
+    }
+  }
+
+  function resetForNextRound() {
+    setPhase('aiming');
+    setHitAnswerIdx(null);
     setSpilled([]);
     setFired(false);
-    setProjectileFlying(false);
-    setProjectilePos(null);
-    setWaitingForPhrase(false);
-    setPickedPhrase(null);
+    setProjectile(null);
+    setPickedAnswer(null);
     setPullX(0);
     setPullY(0);
-    setCurrentIndex((i) => i + 1);
+    setWind(generateWind()); // New wind for new round
   }
+
+  function finishGame() {
+    setPhase('complete');
+    if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+    if (windTimerRef.current) clearInterval(windTimerRef.current);
+
+    const answers = useGameStore.getState().slingshotAnswers;
+    const positiveRatio = answers.length > 0
+      ? answers.filter((a) => a.positive).length / answers.length
+      : 0;
+    setSlingshotLuck(positiveRatio);
+  }
+
+  function handleMissRetry() {
+    if (retryCount >= 1) {
+      // Already retried once - skip to spin wheel
+      go('shellGame');
+    } else {
+      // First miss - allow one retry
+      setRetryCount(retryCount + 1);
+      resetForNextRound();
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (windTimerRef.current) clearInterval(windTimerRef.current);
+    };
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      if (windTimerRef.current) clearInterval(windTimerRef.current);
+    };
+  }, []);
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🎨  RENDER - COMPLETE PHASE
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  if (phase === 'complete') {
+    return (
+      <ScreenShell hideProgress hideBack>
+        <motion.div
+          className="flex-1 flex flex-col justify-center items-center text-center"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={spring.gentle}
+          onAnimationComplete={() => {
+            setTimeout(() => go('shellGame'), 1800);
+          }}
+        >
+          <motion.div
+            className="text-7xl mb-4"
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ ...spring.snappy, delay: 0.15 }}
+          >
+            🏆
+          </motion.div>
+          <h2 className="text-display text-ink mb-2">Perfect Score!</h2>
+          <p className="text-body text-ink-secondary mb-6">All 3 rounds completed · Generating your review</p>
+          <p className="text-ink-tertiary text-caption mt-8">Building your personalized experience…</p>
+        </motion.div>
+      </ScreenShell>
+    );
+  }
+
+  // ── Miss phase ──
+  if (phase === 'miss') {
+    const isLastChance = retryCount >= 1;
+    
+    return (
+      <ScreenShell hideProgress hideBack>
+        <motion.div
+          className="flex-1 flex flex-col justify-center items-center text-center px-4"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          <motion.div
+            className="text-7xl mb-4"
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={spring.snappy}
+          >
+            {isLastChance ? '�' : '�💨'}
+          </motion.div>
+          <h2 className="text-display text-ink mb-2">
+            {isLastChance ? 'Last Chance Used!' : 'Missed!'}
+          </h2>
+          <p className="text-body text-ink-secondary mb-2">
+            {isLastChance 
+              ? 'You already used your retry'
+              : 'Stone flew past the jars'}
+          </p>
+          <p className="text-caption text-ink-tertiary mb-8">
+            {isLastChance
+              ? 'Moving to spin the wheel...'
+              : wind.strength !== 'calm' && 'Wind affected your shot!'}
+          </p>
+          <motion.button
+            onClick={handleMissRetry}
+            className="px-6 py-3 rounded-full font-semibold text-label text-white"
+            style={{ background: 'linear-gradient(135deg, #E8B896, #C67C4E)' }}
+            whileTap={{ scale: 0.95 }}
+          >
+            {isLastChance ? 'Continue to Spin Wheel' : 'Retry This Round (1 chance)'}
+          </motion.button>
+        </motion.div>
+      </ScreenShell>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  // 🎨  RENDER - PLAYING PHASE
+  // ══════════════════════════════════════════════════════════════════════════════
+
+  const powerPercent = Math.round(pullY * 100);
+  const isPowerSufficient = pullY >= PHYSICS.MIN_POWER;
+  
+  const turnLabel = pickedAnswer ? 'Moving to next round...' :
+    hitAnswerIdx !== null ? 'Tap to confirm!' :
+    isDragging ? (isPowerSufficient ? `Power: ${powerPercent}% 🎯` : `Pull more! ${powerPercent}%`) :
+    'Pull the slingshot to aim';
 
   return (
     <ScreenShell hideProgress hideBack>
@@ -204,36 +610,95 @@ export default function SlingshotGameScreen() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <motion.div
-          className="text-center mb-4"
+          className="text-center mb-3"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring.gentle}
         >
-          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-1.5 rounded-full text-sm font-semibold mb-3">
-            <span>Round 6</span>
+          <div
+            className="inline-flex items-center gap-2 text-primary px-4 py-1.5 rounded-full text-label font-semibold mb-3"
+            style={{ background: 'rgba(198,124,78,0.1)', border: '1px solid rgba(198,124,78,0.2)' }}
+          >
+            <span>Round {roundIdx + 1} of {ROUNDS.length}</span>
             <span className="text-primary/50">—</span>
-            <span>Final Verdict</span>
+            <span>Slingshot</span>
           </div>
-          <h2 className="text-[24px] font-bold text-ink">
-            {currentQuestion.text}
-          </h2>
-          <p className="text-ink/60 text-[13px] mt-1">
-            {waitingForPhrase
-              ? 'Tap a phrase to add to your review!'
-              : isDragging
-                ? `Pull back & release! ${pullX > 0.2 ? 'YES' : pullX < -0.2 ? 'NO' : 'Aim...'}`
-                : 'Pull the slingshot back or tap a jar'}
-          </p>
+
+          <h3 className="text-heading text-ink mb-2">{currentRound.question}</h3>
+          <p className="text-ink-secondary text-label">{turnLabel}</p>
         </motion.div>
 
-        {/* Game arena */}
+        {/* ── Wind Indicator ── */}
+        <motion.div
+          className="flex items-center justify-center gap-2 mb-2"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={spring.gentle}
+        >
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-micro font-semibold"
+            style={{
+              background: wind.strength === 'strong' ? 'rgba(239,68,68,0.1)' : 
+                         wind.strength === 'medium' ? 'rgba(251,146,60,0.1)' :
+                         wind.strength === 'light' ? 'rgba(59,130,246,0.1)' :
+                         'rgba(156,163,175,0.1)',
+              color: wind.strength === 'strong' ? '#DC2626' :
+                     wind.strength === 'medium' ? '#EA580C' :
+                     wind.strength === 'light' ? '#2563EB' :
+                     '#6B7280',
+              border: `1px solid ${
+                wind.strength === 'strong' ? 'rgba(239,68,68,0.2)' :
+                wind.strength === 'medium' ? 'rgba(251,146,60,0.2)' :
+                wind.strength === 'light' ? 'rgba(59,130,246,0.2)' :
+                'rgba(156,163,175,0.2)'
+              }`,
+            }}
+          >
+            <motion.span
+              animate={wind.direction === 'left' ? { x: [-2, 0, -2] } : wind.direction === 'right' ? { x: [2, 0, 2] } : {}}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              {wind.direction === 'left' ? '←' : wind.direction === 'right' ? '→' : '•'}
+            </motion.span>
+            <span>
+              Wind: {wind.strength === 'calm' ? 'Calm' : 
+                     wind.strength === 'light' ? 'Light' :
+                     wind.strength === 'medium' ? 'Medium' :
+                     'Strong'}
+            </span>
+          </div>
+        </motion.div>
+
+        {/* ── Power Warning ── */}
+        <AnimatePresence>
+          {showPowerWarning && (
+            <motion.div
+              className="text-center mb-2"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+            >
+              <span className="text-micro text-red-600 font-semibold">
+                ⚠️ Pull back at least 25% to fire!
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Game arena ── */}
         <motion.div
           ref={arenaRef}
           animate={shaking ? { x: [0, -6, 6, -4, 4, -2, 2, 0] } : {}}
           transition={{ duration: 0.5 }}
-          className="relative h-[340px] rounded-2xl bg-gradient-to-b from-primary/5 via-surface to-primary/5 border border-ink/5 overflow-hidden touch-none select-none shadow-card"
+          className="relative h-[340px] rounded-2xl overflow-hidden touch-none select-none flex-1"
+          style={{
+            background: 'rgba(251,247,244,0.95)',
+            backgroundImage: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(198,124,78,0.04) 0%, transparent 60%)',
+            border: '1px solid rgba(200,170,140,0.2)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+          }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
@@ -246,80 +711,93 @@ export default function SlingshotGameScreen() {
             }
           }}
         >
-          {/* Shelf line */}
-          <div className="absolute bottom-[42%] left-6 right-6 h-[2px] bg-gradient-to-r from-transparent via-ink/10 to-transparent rounded-full" />
+          {/* Shelf line — warm tan */}
+          <div className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
 
-          {/* NO Jar - Left */}
-          <div className="absolute left-[6%] top-[16%]">
-            <AnimatePresence mode="wait">
-              {brokenJar !== 'no' ? (
+          {/* Wind particles - visible wind effect */}
+          {wind.strength !== 'calm' && (
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
                 <motion.div
-                  key="jar-no"
-                  className="flex flex-col items-center cursor-pointer"
-                  onClick={() => handleJarTap('no')}
-                  whileTap={{ scale: 0.94 }}
-                  exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], rotate: [0, -15, -30], transition: { duration: 0.4 } }}
-                >
-                  <motion.span
-                    className="text-7xl drop-shadow-lg"
-                    style={{ filter: 'grayscale(30%)' }}
-                    animate={isDragging && pullX < -0.2 ? { rotate: [-3, 3, -3], scale: [1, 1.08, 1] } : {}}
-                    transition={{ repeat: Infinity, duration: 0.4 }}
-                  >
-                    🏺
-                  </motion.span>
-                  <span className="mt-1 px-3 py-1 rounded-full bg-red-500/10 text-red-600 text-xs font-bold tracking-wider">
-                    NO
-                  </span>
-                </motion.div>
-              ) : (
-                <motion.div key="jar-no-broken" initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 0.6 }}
-                  className="flex flex-col items-center">
-                  <span className="text-4xl">💥</span>
-                  <span className="text-xs text-ink/60 mt-1">Smashed!</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  key={`wind-${i}`}
+                  className="absolute w-1 h-1 rounded-full"
+                  style={{
+                    background: wind.strength === 'strong' ? 'rgba(239,68,68,0.4)' :
+                               wind.strength === 'medium' ? 'rgba(251,146,60,0.3)' :
+                               'rgba(59,130,246,0.2)',
+                    top: `${20 + i * 8}%`,
+                    left: wind.direction === 'left' ? '95%' : '5%',
+                  }}
+                  animate={{
+                    x: wind.direction === 'left' ? [-200, 0] : [200, 0],
+                    opacity: [0, 0.6, 0],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    delay: i * 0.2,
+                    ease: 'linear',
+                  }}
+                />
+              ))}
+            </div>
+          )}
 
-          {/* YES Jar - Right */}
-          <div className="absolute right-[6%] top-[16%]">
-            <AnimatePresence mode="wait">
-              {brokenJar !== 'yes' ? (
-                <motion.div
-                  key="jar-yes"
-                  className="flex flex-col items-center cursor-pointer"
-                  onClick={() => handleJarTap('yes')}
-                  whileTap={{ scale: 0.94 }}
-                  exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], rotate: [0, 15, 30], transition: { duration: 0.4 } }}
-                >
-                  <motion.span
-                    className="text-7xl drop-shadow-lg"
-                    animate={isDragging && pullX > 0.2 ? { rotate: [-3, 3, -3], scale: [1, 1.08, 1] } : {}}
-                    transition={{ repeat: Infinity, duration: 0.4 }}
-                  >
-                    🏺
-                  </motion.span>
-                  <span className="mt-1 px-3 py-1 rounded-full bg-green-500/10 text-green-600 text-xs font-bold tracking-wider">
-                    YES
-                  </span>
-                </motion.div>
-              ) : (
-                <motion.div key="jar-yes-broken" initial={{ scale: 2, opacity: 0 }} animate={{ scale: 1, opacity: 0.6 }}
-                  className="flex flex-col items-center">
-                  <span className="text-4xl">💥</span>
-                  <span className="text-xs text-ink/60 mt-1">Smashed!</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          {/* 4 Answer jars with labels - NO HIGHLIGHTING */}
+          {currentRound.answers.map((answer, idx) => {
+            const jar = JAR_POSITIONS[idx];
+            const isHit = hitAnswerIdx === idx;
+
+            return (
+              <div
+                key={idx}
+                className="absolute"
+                style={{ left: `${jar.x}%`, top: `${jar.y}%`, transform: 'translate(-50%, -50%)' }}
+              >
+                <AnimatePresence mode="wait">
+                  {!isHit ? (
+                    <motion.div
+                      key={`jar-${idx}-intact`}
+                      className="flex flex-col items-center gap-2"
+                      exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], transition: { duration: 0.4 } }}
+                    >
+                      <span className="text-5xl drop-shadow-lg leading-none">
+                        🏺
+                      </span>
+                      {/* Label below jar - always same style */}
+                      <div
+                        className="px-2 py-1 rounded-lg text-micro font-semibold text-center max-w-[80px] leading-tight"
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          color: '#7A5C4A',
+                          border: '1px solid rgba(200,170,140,0.2)',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                        }}
+                      >
+                        {answer}
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={`jar-${idx}-broken`}
+                      initial={{ scale: 2, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 0.5 }}
+                      className="flex flex-col items-center"
+                    >
+                      <span className="text-3xl">💥</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
 
           {/* Slingshot */}
-          <div className="absolute left-1/2 bottom-[6%] -translate-x-1/2 z-10">
+          <div className="absolute left-1/2 bottom-[6%] -translate-x-1/2 z-10 scale-125">
             <Slingshot pullX={pullX} pullY={pullY} isDragging={isDragging} fired={fired} />
-            {!isDragging && !brokenJar && !projectileFlying && (
+            {!isDragging && hitAnswerIdx === null && phase === 'aiming' && (
               <motion.p
-                className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-ink/60"
+                className="absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-micro text-ink-tertiary"
                 animate={{ opacity: [0.3, 0.7, 0.3] }}
                 transition={{ repeat: Infinity, duration: 2 }}
               >
@@ -328,109 +806,128 @@ export default function SlingshotGameScreen() {
             )}
           </div>
 
-          {/* Flying projectile */}
-          <AnimatePresence>
-            {projectileFlying && projectilePos && (
-              <motion.div
-                key="projectile"
+          {/* Flying projectile with trail */}
+          {projectile && (
+            <>
+              {/* Trail */}
+              {projectile.trail.map((point, i) => (
+                <div
+                  key={`trail-${i}`}
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: `${point.x}%`,
+                    top: `${point.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                >
+                  <div
+                    className="rounded-full"
+                    style={{
+                      width: 4 + i * 0.3,
+                      height: 4 + i * 0.3,
+                      background: `rgba(198,124,78,${0.2 + i * 0.05})`,
+                    }}
+                  />
+                </div>
+              ))}
+              {/* Projectile */}
+              <div
                 className="absolute z-20 pointer-events-none"
-                style={{ left: '50%', bottom: '18%' }}
-                initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
-                animate={{ left: `${projectilePos.x}%`, top: `${projectilePos.y}%`, bottom: 'auto', scale: 0.6, opacity: 0.8 }}
-                exit={{ opacity: 0, scale: 0 }}
-                transition={{ duration: 0.3, ease: [0.2, 0, 0.3, 1] }}
+                style={{
+                  left: `${projectile.x}%`,
+                  top: `${projectile.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16">
-                  <circle cx="8" cy="8" r="7" fill="#808080" stroke="#333" strokeWidth="0.5" />
+                  <circle cx="8" cy="8" r="7" fill="#C67C4E" stroke="#8B4513" strokeWidth="1" />
                 </svg>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              </div>
+            </>
+          )}
 
-          {/* Impact flash */}
+          {/* Impact flash — warm coffee tint */}
           <AnimatePresence>
             {shaking && (
-              <motion.div key="flash" initial={{ opacity: 0.6 }} animate={{ opacity: 0 }}
-                exit={{ opacity: 0 }} transition={{ duration: 0.4 }}
-                className="absolute inset-0 bg-white/30 pointer-events-none z-20 rounded-2xl" />
+              <motion.div
+                key="flash"
+                initial={{ opacity: 0.4 }}
+                animate={{ opacity: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.4 }}
+                className="absolute inset-0 pointer-events-none z-20 rounded-2xl"
+                style={{ background: 'rgba(198,124,78,0.15)' }}
+              />
             )}
           </AnimatePresence>
 
-          {/* Shards */}
+          {/* Shards from broken jar */}
           <AnimatePresence>
-            {brokenJar && Array.from({ length: 8 }).map((_, i) => {
-              const originX = brokenJar === 'no' ? 18 : 82;
-              return (
-                <motion.div key={`shard-${i}`} className="absolute text-sm pointer-events-none"
-                  style={{ left: `${originX}%`, top: '25%' }}
-                  initial={{ scale: 1, opacity: 1 }}
-                  animate={{
-                    x: (Math.random() - 0.5) * 160,
-                    y: [0, -30 - Math.random() * 40, 80 + Math.random() * 60],
-                    rotate: Math.random() * 540 - 270,
-                    opacity: [1, 1, 0],
-                    scale: [1, 1.2, 0.3],
-                  }}
-                  transition={{ duration: 1 + Math.random() * 0.5, ease: 'easeOut' }}
-                >
-                  {['✨', '💫', '⭐', '🪨'][i % 4]}
-                </motion.div>
-              );
-            })}
+            {hitAnswerIdx !== null && (
+              <>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <motion.div
+                    key={`shard-${i}`}
+                    className="absolute text-sm pointer-events-none"
+                    style={{ left: `${JAR_POSITIONS[hitAnswerIdx].x}%`, top: `${JAR_POSITIONS[hitAnswerIdx].y}%` }}
+                    initial={{ scale: 1, opacity: 1 }}
+                    animate={{
+                      x: (Math.random() - 0.5) * 120,
+                      y: [0, -25 - Math.random() * 30, 70 + Math.random() * 40],
+                      rotate: Math.random() * 480 - 240,
+                      opacity: [1, 1, 0],
+                      scale: [1, 1.1, 0.2],
+                    }}
+                    transition={{ duration: 0.9 + Math.random() * 0.4, ease: 'easeOut' }}
+                  >
+                    {['✨', '💫', '⭐', '🪨'][i % 4]}
+                  </motion.div>
+                ))}
+              </>
+            )}
           </AnimatePresence>
 
-          {/* Spilled phrases */}
+          {/* Spilled answer — white card with coffee accent */}
           <AnimatePresence>
-            {spilled.map((phrase) => (
+            {spilled.map((item) => (
               <motion.button
-                key={phrase.id}
-                className={`absolute z-30 ${waitingForPhrase && !pickedPhrase ? 'cursor-pointer' : 'pointer-events-none'}`}
-                style={{ left: `${phrase.x}%`, top: `${phrase.y}%` }}
-                initial={{ scale: 0, opacity: 0, y: -40 }}
+                key={item.id}
+                className={`absolute z-30 ${hitAnswerIdx !== null && !pickedAnswer ? 'cursor-pointer' : 'pointer-events-none'}`}
+                style={{ left: `${item.x}%`, top: `${item.y}%` }}
+                initial={{ scale: 0, opacity: 0, y: -35 }}
                 animate={{
-                  scale: pickedPhrase === phrase.text ? 1.2 : 1,
-                  opacity: pickedPhrase && pickedPhrase !== phrase.text ? 0.3 : 1,
+                  scale: pickedAnswer ? 1.15 : 1,
+                  opacity: 1,
                   y: 0,
-                  rotate: phrase.rotation,
+                  rotate: item.rotation,
                 }}
-                exit={{ scale: 0, opacity: 0, y: 20 }}
-                transition={{ delay: pickedPhrase ? 0 : phrase.delay, type: 'spring', stiffness: 250, damping: 18 }}
-                onClick={(e) => { e.stopPropagation(); handlePhrasePick(phrase.text); }}
+                exit={{ scale: 0, opacity: 0, y: 15 }}
+                transition={{ delay: item.delay, type: 'spring', stiffness: 250, damping: 18 }}
+                onClick={(e) => { e.stopPropagation(); handleAnswerPick(item.text, parseInt(item.id.replace('answer-', ''), 10)); }}
               >
                 <motion.div
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold shadow-card border whitespace-nowrap transition-colors ${
-                    pickedPhrase === phrase.text
-                      ? 'bg-primary text-white border-primary ring-2 ring-primary/30'
-                      : brokenJar === 'yes'
-                        ? 'bg-success/10 border-success text-success hover:bg-success/20'
-                        : 'bg-error/10 border-error text-error hover:bg-error/20'
-                  }`}
-                  animate={waitingForPhrase && !pickedPhrase ? { y: [0, -3, 0] } : {}}
-                  transition={{ repeat: Infinity, duration: 1.5, delay: phrase.delay }}
+                  className="px-3 py-1.5 rounded-full text-label font-semibold whitespace-nowrap transition-colors"
+                  style={pickedAnswer ? {
+                    background: 'linear-gradient(135deg, #E8B896, #C67C4E)',
+                    color: '#FFFFFF',
+                    border: '1px solid rgba(198,124,78,0.4)',
+                    boxShadow: '0 4px 12px rgba(198,124,78,0.3)',
+                  } : {
+                    background: '#FFFFFF',
+                    color: '#C67C4E',
+                    border: '1px solid rgba(198,124,78,0.3)',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  }}
+                  animate={hitAnswerIdx !== null && !pickedAnswer ? { y: [0, -3, 0] } : {}}
+                  transition={{ repeat: Infinity, duration: 1.5, delay: item.delay }}
                 >
-                  {pickedPhrase === phrase.text && '✓ '}
-                  {phrase.text}
+                  {pickedAnswer && '✓ '}
+                  {item.text}
                 </motion.div>
               </motion.button>
             ))}
           </AnimatePresence>
         </motion.div>
-
-        {/* Progress dots */}
-        <div className="flex items-center justify-center gap-2 mt-4">
-          {QUESTIONS.map((q, i) => (
-            <div
-              key={q.id}
-              className={`h-2.5 rounded-full transition-all duration-300 ${
-                i < currentIndex
-                  ? 'bg-primary w-2.5'
-                  : i === currentIndex
-                    ? 'bg-primary w-6'
-                    : 'bg-surface w-2.5'
-              }`}
-            />
-          ))}
-        </div>
       </motion.div>
     </ScreenShell>
   );

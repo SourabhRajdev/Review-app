@@ -418,7 +418,7 @@ export default function SparkSliceScreen() {
             exit={{ opacity: 0 }}
           >
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-primary font-semibold mb-2"
+              className="text-micro uppercase tracking-widest text-primary font-semibold mb-2"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={spring.gentle}
@@ -426,7 +426,7 @@ export default function SparkSliceScreen() {
               Round 3 — Slice
             </motion.p>
             <motion.h2
-              className="text-[26px] font-bold text-ink mb-3"
+              className="text-heading text-ink mb-3"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...spring.gentle, delay: 0.05 }}
@@ -434,7 +434,7 @@ export default function SparkSliceScreen() {
               How was the food?
             </motion.h2>
             <motion.p
-              className="text-ink/60 text-[14px] mb-8 max-w-[300px]"
+              className="text-ink-secondary text-body-sm mb-8 max-w-[300px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.15 }}
@@ -448,22 +448,21 @@ export default function SparkSliceScreen() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
             >
-              <span
-                className="px-3 py-1.5 rounded-full text-[12px] font-semibold text-white"
-                style={{ backgroundColor: '#C67C4E' }}
-              >
+              <span className="px-3 py-1.5 rounded-full text-caption font-semibold" style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.3)' }}>
                 Crispy ✓
               </span>
-              <span
-                className="px-3 py-1.5 rounded-full text-[12px] font-semibold text-white"
-                style={{ backgroundColor: '#3C2415' }}
-              >
+              <span className="px-3 py-1.5 rounded-full text-caption font-semibold" style={{ background: 'rgba(248,113,113,0.12)', color: '#F87171', border: '1px solid rgba(248,113,113,0.25)' }}>
                 Burnt ✗
               </span>
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
+              className="w-full max-w-[300px] rounded-button px-8 py-3.5 text-button cursor-pointer font-bold"
+              style={{
+                background: 'linear-gradient(135deg, #FCD34D 0%, #F59E0B 40%, #D97706 70%, #B45309 100%)',
+                color: '#0D0602',
+                boxShadow: '0 4px 24px rgba(245,158,11,0.35)',
+              }}
               whileTap={tapScale.whileTap}
               onClick={startGame}
               initial={{ opacity: 0, y: 12 }}
@@ -485,26 +484,29 @@ export default function SparkSliceScreen() {
             transition={spring.gentle}
           >
             {/* HUD */}
-            <div className="flex items-center gap-4 mb-3 text-[13px] font-semibold tabular-nums">
-              <span className="text-ink/70">
+            <div className="flex items-center gap-4 mb-3 text-label tabular-nums">
+              <span className="text-ink-secondary">
                 <span className="text-primary">{hud.good}</span> sliced
               </span>
-              <span className="text-ink/70">
+              <span className="text-ink-secondary">
                 <span className="text-error">{hud.burnt}</span> burnt
               </span>
-              <span className="text-ink/70">
+              <span className="text-ink-secondary">
                 <span className="text-ink">{Math.ceil(hud.timeLeft / 1000)}s</span>
               </span>
             </div>
 
             <div
               ref={fieldRef}
-              className="rounded-2xl bg-gradient-to-b from-amber-50/60 to-white border border-ink/5 shadow-card overflow-hidden relative"
+              className="rounded-2xl overflow-hidden relative"
               style={{
                 width: FIELD_W,
                 height: FIELD_H,
                 touchAction: 'none',
                 userSelect: 'none',
+                background: 'rgba(251,247,244,0.95)',
+                border: '1px solid rgba(200,170,140,0.2)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
               }}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
@@ -549,23 +551,25 @@ export default function SparkSliceScreen() {
                   <polyline
                     points={trailPoints}
                     fill="none"
-                    stroke="#C67C4E"
+                    stroke="#F59E0B"
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeOpacity="0.7"
+                    strokeOpacity="0.8"
                   />
                 )}
               </svg>
             </div>
 
             {/* Time bar */}
-            <div className="w-[300px] h-1 bg-ink/10 rounded-full mt-3 overflow-hidden">
+            <div className="w-[300px] h-1.5 rounded-full mt-3 overflow-hidden" style={{ background: 'rgba(200,170,140,0.2)' }}>
               <div
-                className="h-full bg-primary"
+                className="h-full"
                 style={{
                   width: `${(hud.timeLeft / GAME_DURATION_MS) * 100}%`,
                   transition: 'width 0.1s linear',
+                  background: 'linear-gradient(90deg, #D97706, #F59E0B, #FCD34D)',
+                  boxShadow: '0 0 8px rgba(245,158,11,0.6)',
                 }}
               />
             </div>
@@ -582,7 +586,7 @@ export default function SparkSliceScreen() {
             transition={spring.gentle}
           >
             <motion.p
-              className="text-[12px] uppercase tracking-widest text-ink/60 font-semibold mb-1"
+              className="text-micro uppercase tracking-widest text-ink-tertiary font-semibold mb-1"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
@@ -590,7 +594,7 @@ export default function SparkSliceScreen() {
               Flavours captured
             </motion.p>
             <motion.h2
-              className="text-[24px] font-bold text-ink mb-4"
+              className="text-heading text-ink mb-4"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
@@ -600,7 +604,7 @@ export default function SparkSliceScreen() {
 
             {hud.burnt > 0 && (
               <motion.p
-                className="text-[14px] text-error mb-4"
+                className="text-body-sm text-error mb-4"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.28 }}
@@ -619,31 +623,47 @@ export default function SparkSliceScreen() {
                 topFlavours.map((f) => (
                   <span
                     key={f.id}
-                    className="px-3 py-1.5 rounded-full text-[12px] font-semibold text-white"
+                    className="px-3 py-1.5 rounded-full text-caption font-semibold text-white"
                     style={{ backgroundColor: f.color }}
                   >
                     {f.label}
                   </span>
                 ))
               ) : (
-                <span className="text-[13px] text-ink/60">No flavours captured</span>
+                <span className="text-body-sm text-ink-tertiary">No flavours captured</span>
               )}
             </motion.div>
 
             <motion.div
-              className="rounded-2xl bg-primary px-6 py-4 mb-6 shadow-elevated"
+              className="rounded-2xl px-6 py-4 mb-6 relative overflow-hidden"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ ...spring.gentle, delay: 0.4 }}
+              style={{
+                background: '#FFFFFF',
+                border: '1px solid rgba(198,124,78,0.25)',
+                boxShadow: '0 4px 24px rgba(198,124,78,0.2), 0 1px 4px rgba(0,0,0,0.06)',
+              }}
             >
-              <p className="text-white/80 text-[12px] uppercase tracking-wider mb-1">Earned</p>
-              <p className="text-white text-[36px] font-bold leading-none">
+              <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: 'linear-gradient(90deg, transparent, #C67C4E, transparent)' }} />
+              <p className="text-ink-tertiary text-micro uppercase tracking-wider mb-1">Earned</p>
+              <p className="font-bold leading-none text-[36px]" style={{
+                background: 'linear-gradient(135deg, #E8B896, #C67C4E)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
                 +{finalDiscount}%
               </p>
             </motion.div>
 
             <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
+              className="w-full max-w-[300px] rounded-button px-8 py-[18px] text-button font-bold cursor-pointer"
+              style={{
+                background: 'linear-gradient(135deg, #FCD34D 0%, #F59E0B 40%, #D97706 70%, #B45309 100%)',
+                color: '#0D0602',
+                boxShadow: '0 4px 24px rgba(245,158,11,0.35)',
+              }}
               whileTap={tapScale.whileTap}
               onClick={continueToNext}
               initial={{ opacity: 0, y: 12 }}

@@ -1,9 +1,9 @@
 // BASKETBALL OFFER SCREEN
 //
 // Flow:
-//   Phase 1 — "Score & Win!" intro + question with 4 option boards
-//   Phase 2 — Canvas basketball shooting game (inspired by BonbonLemon/basketball)
-//   Phase 3 — Discount reveal celebration with confetti
+//   Phase 1 — Canvas basketball shooting game
+//   Phase 2 — Discount reveal celebration with confetti
+//   Phase 3 — Missed all fallback
 //
 // After the user scores a basket, a random discount (1-10%) is revealed.
 
@@ -12,25 +12,33 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useGameStore } from '@/architecture/game/store';
-import { spring, tapScale } from '@/design/motion';
+import { useLuckStore } from '@/architecture/luck/store';
+import { spring } from '@/design/motion';
 import { audio } from '@/design/audio';
 import { haptics } from '@/design/haptics';
+import PrimaryButton from '@/components/PrimaryButton';
 
-// --- CONFIG ---
+type Phase = 'game' | 'reward' | 'missed';
 
-const QUESTION = 'Would you recommend us to a friend?';
+// ── Canvas color constants — light warm palette ──
+const BACKBOARD_BG = 'rgba(255,248,240,0.9)';   // warm white backboard
+const BACKBOARD_BORDER = '#D8C8BB';              // warm border
+const RIM_COLOR = '#F59E0B';                     // amber rim (keep)
+const RIM_FRONT = '#D97706';
+const RIM_DOT = '#F59E0B';
+const NET_COLOR = 'rgba(200,170,140,0.6)';       // warm tan net
+const NET_CROSS = 'rgba(200,170,140,0.35)';
+const TRAIL_COLOR = '198, 124, 78';             // coffee trail
+const SHADOW_COLOR = 'rgba(0,0,0,0.15)';
+const BALL_FALLBACK = '#F59E0B';
+const BALL_FALLBACK_STROKE = '#B45309';
+const RIM_ALPHA = 'rgba(198,124,78,0.5)';       // aim line
+const SUCCESS_CIRCLE = 'rgba(13,158,111,0.15)';
+const SUCCESS_FLASH = '#0D9E6F';
+const HINT_COLOR = '#B09080';                    // --color-ink-tertiary
+const CANVAS_BG = 'rgba(251,247,244,0.95)';     // warm court bg
 
-const OPTIONS = [
-  { id: 'absolutely', label: 'Absolutely!', color: '#4CAF50' },
-  { id: 'probably', label: 'Most likely', color: '#C67C4E' },
-  { id: 'maybe', label: 'Maybe', color: '#F59E0B' },
-  { id: 'not_sure', label: 'Not sure yet', color: '#A78BFA' }
-];
-
-type Phase = 'question' | 'game' | 'reward' | 'missed';
-
-// --- CANVAS CONSTANTS ---
-
+// ── CANVAS CONSTANTS ──
 const CANVAS_W = 360;
 const CANVAS_H = 540;
 const HOOP_X = CANVAS_W / 2;
@@ -38,46 +46,10 @@ const HOOP_Y = 130;
 const HOOP_WIDTH = 80;
 const BALL_RADIUS = 26;
 const GRAVITY = 0.25;
-const MAX_ATTEMPTS = 5; // auto-score after this many misses
-const AIM_ASSIST = 0.45; // blend factor toward ideal trajectory (0 = none, 1 = auto-aim)
+const MAX_ATTEMPTS = 5;
+const AIM_ASSIST = 0.45;
 
-// --- OPTION CARD ---
-
-function OptionCard({
-  opt,
-  onPick
-}: {
-  opt: typeof OPTIONS[0];
-  onPick: (id: string) => void;
-}) {
-  return (
-    <motion.button
-      className="bg-surface border border-ink/5 shadow-card rounded-2xl p-4 cursor-pointer hover:shadow-elevated transition-shadow duration-200 flex flex-col items-center gap-2 text-center"
-      whileTap={tapScale.whileTap}
-      onClick={() => onPick(opt.id)}
-    >
-      <div
-        className="w-12 h-12 rounded-xl flex items-center justify-center"
-        style={{ backgroundColor: `${opt.color}15` }}
-      >
-        <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
-          {/* Backboard */}
-          <rect x="6" y="8" width="36" height="16" rx="3" fill={opt.color} opacity="0.15" stroke={opt.color} strokeWidth="1.5" />
-          {/* Rim (ellipse) */}
-          <ellipse cx="24" cy="28" rx="16" ry="4" fill={opt.color} opacity="0.4" />
-          <ellipse cx="24" cy="28" rx="16" ry="4" stroke={opt.color} strokeWidth="2" fill="none" />
-          {/* Net lines */}
-          <path d="M10 28 L12 40 M16 28 L17 40 M20 28 L21 40 M24 28 L24 40 M28 28 L27 40 M32 28 L31 40 M38 28 L36 40" stroke={opt.color} strokeWidth="1" opacity="0.4" />
-          {/* Net horizontal lines */}
-          <path d="M10 32 L38 32 M11 36 L37 36" stroke={opt.color} strokeWidth="0.8" opacity="0.3" />
-        </svg>
-      </div>
-      <span className="text-[14px] font-semibold text-ink leading-tight">{opt.label}</span>
-    </motion.button>
-  );
-}
-
-// --- CANVAS BASKETBALL GAME ---
+// ── CANVAS BASKETBALL GAME ──
 
 function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMissedAll: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -85,21 +57,18 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
   const scoredRef = useRef(false);
   const attemptsRef = useRef(0);
 
-  // Ball state
   const bx = useRef(CANVAS_W / 2);
   const by = useRef(CANVAS_H - 80);
   const bvx = useRef(0);
   const bvy = useRef(0);
   const launched = useRef(false);
 
-  // Drag state
   const dragging = useRef(false);
   const dragStartX = useRef(0);
   const dragStartY = useRef(0);
   const dragCurX = useRef(0);
   const dragCurY = useRef(0);
 
-  // Load ball image
   const ballImg = useRef<HTMLImageElement | null>(null);
   useEffect(() => {
     const img = new Image();
@@ -107,7 +76,6 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     ballImg.current = img;
   }, []);
 
-  // Trail positions for arc visualization
   const trail = useRef<{ x: number; y: number }[]>([]);
 
   const resetBall = useCallback(() => {
@@ -119,7 +87,6 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     trail.current = [];
   }, []);
 
-  // --- GAME LOOP ---
   useEffect(() => {
     let running = true;
     const leftRimX = HOOP_X - HOOP_WIDTH / 2;
@@ -133,11 +100,10 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       const ctx = canvas.getContext('2d');
       if (!ctx) { animRef.current = requestAnimationFrame(tick); return; }
 
-      // --- PHYSICS UPDATE ---
+      // Physics update
       if (launched.current && !scoredRef.current) {
         bvy.current += GRAVITY;
 
-        // Cap max velocity so ball can't teleport past hoop
         const maxV = 18;
         bvy.current = Math.max(-maxV, Math.min(maxV, bvy.current));
         bvx.current = Math.max(-maxV, Math.min(maxV, bvx.current));
@@ -146,10 +112,8 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         bx.current += bvx.current;
         by.current += bvy.current;
 
-        // --- Rim collision (only when ball is near hoop height) ---
         if (Math.abs(by.current - HOOP_Y) < BALL_RADIUS + 12) {
           const rimR = BALL_RADIUS + 4;
-          // Left rim
           const dlx = bx.current - leftRimX;
           const dly = by.current - HOOP_Y;
           const distL = Math.sqrt(dlx * dlx + dly * dly);
@@ -161,13 +125,10 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
             const dot = bvx.current * nx + bvy.current * ny;
             bvx.current -= 1.6 * dot * nx * 0.5;
             bvy.current -= 1.6 * dot * ny * 0.5;
-            // Nudge ball inward (toward hoop center) on rim hits
             bvx.current += 0.8;
-            // Rim clang — short metallic feel
             audio.tick();
             haptics.tick();
           }
-          // Right rim
           const drx = bx.current - rightRimX;
           const dry = by.current - HOOP_Y;
           const distR = Math.sqrt(drx * drx + dry * dry);
@@ -179,15 +140,12 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
             const dot = bvx.current * nx + bvy.current * ny;
             bvx.current -= 1.6 * dot * nx * 0.5;
             bvy.current -= 1.6 * dot * ny * 0.5;
-            // Nudge ball inward
             bvx.current -= 0.8;
-            // Rim clang — short metallic feel
             audio.tick();
             haptics.tick();
           }
         }
 
-        // --- Score detection (swept: ball crossed HOOP_Y going downward, between rims) ---
         if (
           prevY <= HOOP_Y + 5 &&
           by.current > HOOP_Y + 5 &&
@@ -195,13 +153,11 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
           bx.current < rightRimX - 4
         ) {
           scoredRef.current = true;
-          // Swish — bright bell + jackpot haptic
           audio.bullseye();
           haptics.jackpot();
           setTimeout(() => onScore(), 500);
         }
 
-        // --- Wall bounce ---
         if (bx.current < BALL_RADIUS) {
           bx.current = BALL_RADIUS;
           bvx.current = Math.abs(bvx.current) * 0.5;
@@ -211,19 +167,15 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
           bvx.current = -Math.abs(bvx.current) * 0.5;
         }
 
-        // --- Trail tracking ---
         if (launched.current) {
           trail.current.push({ x: bx.current, y: by.current });
           if (trail.current.length > 12) trail.current.shift();
         }
 
-        // --- Ball off screen (miss) ---
         if (by.current > CANVAS_H + 50) {
           attemptsRef.current++;
-          // Penalty thud per miss — only fire once per off-screen
           audio.miss();
           haptics.miss();
-          // All attempts used — no offer, move on
           if (attemptsRef.current >= MAX_ATTEMPTS) {
             scoredRef.current = true;
             setTimeout(() => onMissedAll(), 200);
@@ -233,28 +185,28 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         }
       }
 
-      // --- DRAW ---
+      // ── DRAW ──
       ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
       // Backboard
       const bbW = 100, bbH = 65;
-      ctx.fillStyle = '#C67C4E18';
+      ctx.fillStyle = BACKBOARD_BG;
       ctx.beginPath();
       ctx.roundRect(HOOP_X - bbW / 2, HOOP_Y - bbH + 8, bbW, bbH, 8);
       ctx.fill();
-      ctx.strokeStyle = '#C67C4E33';
+      ctx.strokeStyle = BACKBOARD_BORDER;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Back rim (full ellipse behind ball)
-      ctx.strokeStyle = '#E8A87C';
+      // Back rim
+      ctx.strokeStyle = RIM_COLOR;
       ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.ellipse(HOOP_X, HOOP_Y, HOOP_WIDTH / 2, 7, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
 
       // Net
-      ctx.strokeStyle = '#D4C4B088';
+      ctx.strokeStyle = NET_COLOR;
       ctx.lineWidth = 1.2;
       for (let i = 0; i <= 5; i++) {
         const t = i / 5;
@@ -265,7 +217,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         ctx.quadraticCurveTo((sx + ex) / 2, HOOP_Y + 22, ex, HOOP_Y + 35);
         ctx.stroke();
       }
-      // Cross-hatch
+      ctx.strokeStyle = NET_CROSS;
       for (let row = 0; row < 3; row++) {
         const ry = HOOP_Y + 8 + row * 10;
         const shrink = row * 3;
@@ -275,25 +227,25 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         ctx.stroke();
       }
 
-      // Ball trail (fading circles)
+      // Ball trail
       if (launched.current && trail.current.length > 1) {
         for (let i = 0; i < trail.current.length; i++) {
           const t = trail.current[i];
-          const alpha = (i / trail.current.length) * 0.25;
+          const alpha = (i / trail.current.length) * 0.2;
           const size = BALL_RADIUS * (0.3 + (i / trail.current.length) * 0.5);
-          ctx.fillStyle = `rgba(198, 124, 78, ${alpha})`;
+          ctx.fillStyle = `rgba(${TRAIL_COLOR}, ${alpha})`;
           ctx.beginPath();
           ctx.arc(t.x, t.y, size, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // Ball shadow on ground
+      // Ball shadow
       if (!scoredRef.current) {
         const shadowY = CANVAS_H - 30;
         const heightRatio = Math.max(0, 1 - (shadowY - by.current) / (CANVAS_H - 100));
         const shadowW = BALL_RADIUS * (0.5 + heightRatio * 0.8);
-        ctx.fillStyle = `rgba(60, 36, 21, ${0.08 + heightRatio * 0.07})`;
+        ctx.fillStyle = SHADOW_COLOR;
         ctx.beginPath();
         ctx.ellipse(bx.current, shadowY, shadowW, 4, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -305,23 +257,22 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         const sz = BALL_RADIUS * 2;
         ctx.drawImage(ballImg.current!, bx.current - BALL_RADIUS, by.current - BALL_RADIUS, sz, sz);
       } else {
-        ctx.fillStyle = '#F59E0B';
+        ctx.fillStyle = BALL_FALLBACK;
         ctx.beginPath();
         ctx.arc(bx.current, by.current, BALL_RADIUS, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = '#92400E';
+        ctx.strokeStyle = BALL_FALLBACK_STROKE;
         ctx.lineWidth = 2;
         ctx.stroke();
       }
 
       // Front rim (drawn on top of ball)
-      ctx.strokeStyle = '#C67C4E';
+      ctx.strokeStyle = RIM_FRONT;
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.ellipse(HOOP_X, HOOP_Y, HOOP_WIDTH / 2, 7, 0, 0, Math.PI);
       ctx.stroke();
-      // Rim dots (the red circles on a real rim)
-      ctx.fillStyle = '#C67C4E';
+      ctx.fillStyle = RIM_DOT;
       ctx.beginPath();
       ctx.arc(leftRimX, HOOP_Y, 4, 0, Math.PI * 2);
       ctx.fill();
@@ -329,17 +280,16 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       ctx.arc(rightRimX, HOOP_Y, 4, 0, Math.PI * 2);
       ctx.fill();
 
-      // Drag aim line
+      // Aim line
       if (dragging.current && !launched.current) {
         const ddx = dragCurX.current - dragStartX.current;
         const ddy = dragCurY.current - dragStartY.current;
         if (ddy < -10) {
-          ctx.strokeStyle = '#C67C4E55';
+          ctx.strokeStyle = RIM_ALPHA;
           ctx.lineWidth = 2;
           ctx.setLineDash([6, 4]);
           ctx.beginPath();
           ctx.moveTo(bx.current, by.current);
-          // Project aim toward hoop
           const aimX = bx.current - ddx * 1.5;
           const aimY = by.current + ddy * 1.5;
           ctx.lineTo(aimX, aimY);
@@ -350,8 +300,8 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
 
       // Hint text
       if (!launched.current) {
-        ctx.fillStyle = '#8B7355';
-        ctx.font = '500 14px Karla, system-ui, sans-serif';
+        ctx.fillStyle = HINT_COLOR;
+        ctx.font = '500 14px Outfit, system-ui, sans-serif';
         ctx.textAlign = 'center';
         if (attemptsRef.current === 0) {
           ctx.fillText('Swipe the ball up to shoot!', CANVAS_W / 2, CANVAS_H - 16);
@@ -361,7 +311,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
 
         // Animated arrow above ball
         const arrowY = by.current - 36 + Math.sin(Date.now() / 350) * 5;
-        ctx.strokeStyle = '#C67C4E77';
+        ctx.strokeStyle = RIM_ALPHA;
         ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -378,12 +328,12 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
 
       // Score flash
       if (scoredRef.current) {
-        ctx.fillStyle = '#4CAF5033';
+        ctx.fillStyle = SUCCESS_CIRCLE;
         ctx.beginPath();
         ctx.arc(HOOP_X, HOOP_Y, 50, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#4CAF50';
-        ctx.font = 'bold 28px Karla, system-ui, sans-serif';
+        ctx.fillStyle = SUCCESS_FLASH;
+        ctx.font = 'bold 28px Outfit, system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText('SCORE!', HOOP_X, HOOP_Y + 80);
       }
@@ -395,7 +345,6 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     return () => { running = false; cancelAnimationFrame(animRef.current); };
   }, [onScore, onMissedAll, resetBall]);
 
-  // --- INPUT HANDLING ---
   const getPos = (e: React.TouchEvent | React.MouseEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
@@ -421,13 +370,11 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       dragStartY.current = pos.y;
       dragCurX.current = pos.x;
       dragCurY.current = pos.y;
-      // Pickup feedback — user grabbed the ball
       audio.tick();
       haptics.tick();
     }
   };
 
-  // Throttle the drag-buzz so we don't spam vibrate() every frame
   const lastDragHapticAt = useRef(0);
   const onMove = (e: React.TouchEvent | React.MouseEvent) => {
     if (!dragging.current) return;
@@ -435,8 +382,6 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     const pos = getPos(e);
     dragCurX.current = pos.x;
     dragCurY.current = pos.y;
-    // Pulse a tiny haptic ~every 90ms while pulling back — feels like
-    // resistance building under the thumb.
     const now = performance.now();
     if (now - lastDragHapticAt.current > 90) {
       lastDragHapticAt.current = now;
@@ -452,50 +397,30 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     const dx = dragCurX.current - dragStartX.current;
     const dy = dragCurY.current - dragStartY.current;
 
-    // Only shoot on upward swipe
     if (dy < -15) {
       launched.current = true;
 
-      // --- Physics-based launch ---
-      // We need the ball to arc up and come back down through the hoop.
-      // Calculate the ideal trajectory to reach the hoop, then blend
-      // the user's swipe direction with aim-assist.
-
-      const distY = by.current - HOOP_Y; // vertical distance to hoop (positive = hoop is above)
-      const distX = HOOP_X - bx.current; // horizontal distance to hoop center
-
-      // Swipe strength (how far they swiped upward)
+      const distY = by.current - HOOP_Y;
+      const distX = HOOP_X - bx.current;
       const swipeLen = Math.sqrt(dx * dx + dy * dy);
-      const power = Math.min(swipeLen / 120, 1); // 0..1 normalized power
+      const power = Math.min(swipeLen / 120, 1);
 
-      // Ideal vy to reach ~40px above the hoop (nice arc)
-      // Using v² = 2*g*h → v = sqrt(2*g*h)
-      const arcHeight = distY + 40 + power * 30; // overshoot for arc
+      const arcHeight = distY + 40 + power * 30;
       const idealVy = -Math.sqrt(2 * GRAVITY * Math.max(arcHeight, 80));
-
-      // Time to reach hoop height on the way down
-      // y = vy*t + 0.5*g*t² → solve for when y = -distY
-      // Using the full parabola, time ≈ -2*vy/g (total flight time to same height)
       const flightTime = -2 * idealVy / GRAVITY;
-      // Ideal vx to arrive at hoop center in that time
-      const idealVx = distX / (flightTime * 0.52); // 0.52 = ball arrives just past apex
+      const idealVx = distX / (flightTime * 0.52);
 
-      // User's intended direction from swipe
       const userVx = -dx * 0.12;
       const userVy = Math.max(dy * 0.28, -16);
 
-      // Blend user input with aim-assist
       bvx.current = userVx * (1 - AIM_ASSIST) + idealVx * AIM_ASSIST;
       bvy.current = userVy * (1 - AIM_ASSIST) + idealVy * AIM_ASSIST;
 
-      // Add slight randomness so it doesn't feel robotic
       bvx.current += (Math.random() - 0.5) * 1.5;
       bvy.current += (Math.random() - 0.5) * 0.8;
 
-      // Ensure minimum upward speed
       if (bvy.current > -8) bvy.current = -8;
 
-      // Release — sweep + heavy land feel as the ball leaves the hand
       audio.release();
       haptics.land();
     }
@@ -512,8 +437,15 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         ref={canvasRef}
         width={CANVAS_W}
         height={CANVAS_H}
-        className="rounded-2xl bg-white/60 border border-ink/5 shadow-card"
-        style={{ touchAction: 'none', width: '100%', maxWidth: 360 }}
+        className="rounded-2xl"
+        style={{
+          touchAction: 'none',
+          width: '100%',
+          maxWidth: 360,
+          background: CANVAS_BG,
+          border: '1px solid rgba(200,170,140,0.2)',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+        }}
         onMouseDown={onDown}
         onMouseMove={onMove}
         onMouseUp={onUp}
@@ -526,23 +458,23 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
   );
 }
 
-// --- CONFETTI PARTICLES ---
+// ── CONFETTI ──
 
 function Confetti() {
-  const colors = ['#C67C4E', '#F59E0B', '#4CAF50', '#E8A87C', '#A78BFA', '#F472B6'];
+  const CONFETTI_COLORS = ['#F59E0B', '#FCD34D', '#0D9E6F', '#D97706', '#C67C4E', '#F59E0B'];
+
   const particles = useRef(
     Array.from({ length: 40 }, (_, i) => ({
       id: i,
-      x: 50 + Math.random() * 0, // starts at center, spread is done via animation
-      color: colors[Math.floor(Math.random() * colors.length)],
+      x: 50,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
       size: 6 + Math.random() * 6,
-      angle: (Math.random() * 360),
-      // Random direction burst
+      angle: Math.random() * 360,
       tx: (Math.random() - 0.5) * 300,
       ty: -(Math.random() * 200) - 50,
       rotation: Math.random() * 720 - 360,
       delay: Math.random() * 0.3,
-      shape: Math.random() > 0.5 ? 'circle' : 'rect'
+      shape: Math.random() > 0.5 ? 'circle' : 'rect' as 'circle' | 'rect',
     }))
   ).current;
 
@@ -558,7 +490,7 @@ function Confetti() {
             width: p.size,
             height: p.shape === 'circle' ? p.size : p.size * 1.6,
             backgroundColor: p.color,
-            borderRadius: p.shape === 'circle' ? '50%' : '2px'
+            borderRadius: p.shape === 'circle' ? '50%' : '2px',
           }}
           initial={{ x: 0, y: 0, opacity: 1, rotate: 0, scale: 0 }}
           animate={{
@@ -566,14 +498,14 @@ function Confetti() {
             y: [p.ty, p.ty + 400],
             opacity: [1, 1, 0],
             rotate: p.rotation,
-            scale: [0, 1.2, 1, 0.5]
+            scale: [0, 1.2, 1, 0.5],
           }}
           transition={{
             duration: 1.8,
             delay: p.delay,
             ease: [0.16, 1, 0.3, 1],
             y: { duration: 2, ease: 'easeIn', delay: p.delay },
-            opacity: { duration: 2, delay: p.delay }
+            opacity: { duration: 2, delay: p.delay },
           }}
         />
       ))}
@@ -581,208 +513,213 @@ function Confetti() {
   );
 }
 
-// --- DISCOUNT REVEAL ---
+// ── LUCKOMETER REVEAL ──
 
-function DiscountReveal({ discount, onContinue }: { discount: number; onContinue: () => void }) {
+const TIER_CONFIG = {
+  cold:  { label: 'COLD',  color: '#7BA7BC', bg: 'rgba(123,167,188,0.1)', border: 'rgba(123,167,188,0.25)' },
+  warm:  { label: 'WARM',  color: '#C67C4E', bg: 'rgba(198,124,78,0.1)',  border: 'rgba(198,124,78,0.25)' },
+  hot:   { label: 'HOT',   color: '#E8612A', bg: 'rgba(232,97,42,0.1)',   border: 'rgba(232,97,42,0.25)' },
+  fire:  { label: 'FIRE',  color: '#DC2626', bg: 'rgba(220,38,38,0.1)',   border: 'rgba(220,38,38,0.25)' },
+};
+
+function LuckometerReveal({ scored, onContinue }: { scored: boolean; onContinue: () => void }) {
+  const totalLuck = useLuckStore((s) => s.totalLuck);
+  const tier = useLuckStore((s) => s.tier);
+  const tc = TIER_CONFIG[tier];
+
   return (
     <>
-      <Confetti />
+      {scored && <Confetti />}
       <motion.div
         className="flex flex-col items-center text-center"
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={spring.gentle}
       >
-        {/* Celebration burst */}
+        {/* Ball icon */}
         <motion.div
-          className="relative w-32 h-32 mb-4"
+          className="relative w-24 h-24 mb-4 flex items-center justify-center"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ ...spring.gentle, delay: 0.15 }}
         >
-          {/* Basketball icon */}
-          <div className="flex items-center justify-center">
+          <img src="/basketball/ball.png" alt="" className={`w-20 h-20 ${!scored ? 'opacity-40' : ''}`} />
+        </motion.div>
+
+        <h2 className="text-heading text-ink mb-1">
+          {scored ? 'Nice shot!' : 'Better luck next time!'}
+        </h2>
+        <p className="text-body text-ink-secondary mb-6">
+          {scored ? 'You scored +35 luck points' : 'No luck points this round'}
+        </p>
+
+        {/* Points card */}
+        <motion.div
+          className="w-full max-w-[300px] rounded-3xl p-6 mb-5 relative overflow-hidden"
+          initial={{ opacity: 0, y: 30, scale: 0.85 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ ...spring.gentle, delay: 0.45 }}
+          style={{
+            background: '#FFFFFF',
+            border: `1px solid ${tc.border}`,
+            boxShadow: `0 4px 24px ${tc.bg}, 0 8px 32px rgba(0,0,0,0.05)`,
+          }}
+        >
+          <div className="absolute top-0 left-0 right-0 h-0.5"
+            style={{ background: `linear-gradient(90deg, transparent, ${tc.color}, transparent)` }} />
+
+          <p className="text-ink-tertiary text-body-sm font-medium mb-1">Luck earned</p>
+          <motion.p
+            className="font-black leading-none"
+            style={{
+              fontSize: '3.5rem',
+              background: scored
+                ? `linear-gradient(135deg, ${tc.color}, #6B2D0B)`
+                : 'linear-gradient(135deg, #B09080, #7A5C4A)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+            initial={{ scale: 0 }}
+            animate={{ scale: [0, 1.25, 1] }}
+            transition={{ delay: 0.65, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          >
+            {scored ? '+35' : '+0'}
+          </motion.p>
+
+          {/* Luckometer bar */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-caption text-ink-tertiary font-medium">Total luck</span>
+              <span className="text-caption font-bold" style={{ color: tc.color }}>{totalLuck}/100</span>
+            </div>
+            <div className="w-full h-2.5 rounded-full overflow-hidden" style={{ background: 'rgba(200,170,140,0.18)' }}>
+              <motion.div
+                className="h-full rounded-full"
+                style={{ background: `linear-gradient(90deg, ${tc.color}88, ${tc.color})` }}
+                initial={{ width: 0 }}
+                animate={{ width: `${totalLuck}%` }}
+                transition={{ delay: 0.8, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+              />
+            </div>
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ ...spring.gentle, delay: 0.2 }}
+              className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-caption font-bold"
+              style={{ background: tc.bg, color: tc.color, border: `1px solid ${tc.border}` }}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 1.0, ...spring.snappy }}
             >
-              <img src="/basketball/ball.png" alt="" className="w-20 h-20" />
+              <span>{tc.label}</span>
             </motion.div>
           </div>
         </motion.div>
 
-        <h2 className="text-[30px] font-bold text-ink mb-2">
-          Nice shot!
-        </h2>
-
-        {/* Discount card */}
-        <motion.div
-          className="w-full max-w-[300px] rounded-3xl bg-primary p-7 shadow-elevated mb-5 relative overflow-hidden"
-          initial={{ opacity: 0, y: 30, scale: 0.8 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ ...spring.gentle, delay: 0.5 }}
-        >
-          <p className="text-white/80 text-[15px] font-medium mb-1 relative z-10">You won</p>
-          <motion.p
-            className="text-white text-[52px] font-bold leading-none relative z-10"
-            initial={{ scale: 0 }}
-            animate={{ scale: [0, 1.3, 1] }}
-            transition={{ delay: 0.7, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {discount}% OFF
-          </motion.p>
-          <p className="text-white/80 text-[15px] font-medium mt-2 relative z-10">on your next visit</p>
-        </motion.div>
-
         <motion.p
-          className="text-ink/60 text-[14px] mb-6 max-w-[280px]"
+          className="text-caption text-ink-tertiary mb-6 max-w-[280px]"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.9 }}
-        >
-          Show this screen to your server to redeem your discount!
-        </motion.p>
-
-        <motion.button
-          className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
-          whileTap={tapScale.whileTap}
-          onClick={onContinue}
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.1 }}
         >
-          Continue to Review
-        </motion.button>
+          Your luck meter affects your spin wheel prizes
+        </motion.p>
+
+        <motion.div
+          className="w-full max-w-[300px]"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.25 }}
+        >
+          <PrimaryButton onClick={onContinue}>
+            Continue
+          </PrimaryButton>
+        </motion.div>
       </motion.div>
     </>
   );
 }
 
-// --- MAIN SCREEN ---
+// ── MAIN SCREEN ──
 
 export default function BasketballScreen() {
   const go = useNavigation((s) => s.go);
   const setBasketballAnswer = useGameStore((s) => s.setBasketballAnswer);
-  const [phase, setPhase] = useState<Phase>('question');
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [discount, setDiscount] = useState(0);
-
-  function handlePickOption(id: string) {
-    setSelectedOption(id);
-    audio.tap();
-    haptics.press();
-    setTimeout(() => setPhase('game'), 400);
-  }
+  const setBasketballLuck = useLuckStore((s) => s.setBasketballLuck);
+  const mode = useGameStore((s) => s.mode);
+  const [phase, setPhase] = useState<Phase>('game');
+  const [scored, setScored] = useState(false);
 
   function handleScore() {
-    const randomDiscount = Math.floor(Math.random() * 10) + 1;
-    setDiscount(randomDiscount);
+    setScored(true);
     setBasketballAnswer({
-      questionId: 'recommend',
-      question: QUESTION,
-      selectedOption: selectedOption || '',
+      questionId: 'recommend_reward',
+      question: 'Bonus Reward',
+      selectedOption: 'played',
       scored: true,
-      discount: randomDiscount,
+      discount: 0,
     });
+    setBasketballLuck(true);
     audio.bullseye();
     haptics.impact();
     setTimeout(() => setPhase('reward'), 600);
   }
 
   function handleMissedAll() {
+    setScored(false);
     setBasketballAnswer({
-      questionId: 'recommend',
-      question: QUESTION,
-      selectedOption: selectedOption || '',
+      questionId: 'recommend_reward',
+      question: 'Bonus Reward',
+      selectedOption: 'played',
       scored: false,
       discount: 0,
     });
-    setTimeout(() => setPhase('missed'), 400);
+    setBasketballLuck(false);
+    setTimeout(() => setPhase('reward'), 400);
   }
 
   function handleContinue() {
     audio.tap();
     haptics.press();
-    go('generating');
+    go(mode === 'hard' ? 'generating' : 'vibeGame');
   }
 
   return (
     <ScreenShell className="justify-center">
       <AnimatePresence mode="wait">
-        {/* --- PHASE 1: QUESTION --- */}
-        {phase === 'question' && (
-          <motion.div
-            key="question"
-            className="flex-1 flex flex-col justify-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.3 }}
-          >
-            <motion.div
-              className="text-center mb-8"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={spring.gentle}
-            >
-              <motion.div
-                className="w-16 h-16 rounded-2xl bg-accent-amber/10 flex items-center justify-center mx-auto mb-4"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={spring.snappy}
-              >
-                <img src="/basketball/ball.png" alt="" className="w-9 h-9" />
-              </motion.div>
-              <h2 className="text-[26px] font-bold font-display text-ink mb-1">
-                Score & Win!
-              </h2>
-              <p className="text-ink-muted text-[15px]">
-                Pick your answer, then sink the basket for a surprise discount
-              </p>
-            </motion.div>
-
-            <p className="text-[18px] font-semibold text-ink text-center mb-6">
-              {QUESTION}
-            </p>
-
-            <div className="grid grid-cols-2 gap-3 w-full max-w-[360px] mx-auto">
-              {OPTIONS.map((opt) => (
-                <OptionCard key={opt.id} opt={opt} onPick={handlePickOption} />
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* --- PHASE 2: GAME --- */}
+        {/* GAME */}
         {phase === 'game' && (
           <motion.div
             key="game"
             className="flex-1 flex flex-col justify-center items-center"
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ duration: 0.3 }}
           >
-            <motion.p
-              className="text-[14px] font-medium text-ink/60 mb-2 text-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              You picked: <span className="text-primary font-semibold">{OPTIONS.find((o) => o.id === selectedOption)?.label}</span>
-            </motion.p>
-
-            <motion.h2
-              className="text-[22px] font-bold font-display text-ink mb-3 text-center"
-              initial={{ opacity: 0, y: 8 }}
+            <motion.div
+              className="text-center mb-6"
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={spring.gentle}
             >
-              Sink it for your offer!
-            </motion.h2>
+              <div
+                className="text-primary px-3 py-1 rounded-full text-label font-bold inline-block mb-3"
+                style={{ background: 'rgba(198,124,78,0.1)', border: '1px solid rgba(198,124,78,0.2)' }}
+              >
+                BONUS ROUND
+              </div>
+              <h2 className="text-heading text-ink mb-1">
+                Score &amp; Earn Luck!
+              </h2>
+              <p className="text-ink-secondary text-body">
+                Sink the basket to boost your luck meter
+              </p>
+            </motion.div>
 
             <BasketballGame onScore={handleScore} onMissedAll={handleMissedAll} />
           </motion.div>
         )}
 
-        {/* --- PHASE 3: REWARD --- */}
+        {/* REWARD / MISSED — unified luckometer reveal */}
         {phase === 'reward' && (
           <motion.div
             key="reward"
@@ -791,56 +728,7 @@ export default function BasketballScreen() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <DiscountReveal discount={discount} onContinue={handleContinue} />
-          </motion.div>
-        )}
-
-        {/* --- PHASE 4: MISSED ALL --- */}
-        {phase === 'missed' && (
-          <motion.div
-            key="missed"
-            className="flex-1 flex flex-col justify-center items-center text-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="w-24 h-24 rounded-full bg-surface flex items-center justify-center mb-5"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={spring.snappy}
-            >
-              <img src="/basketball/ball.png" alt="" className="w-14 h-14 opacity-50" />
-            </motion.div>
-
-            <motion.h2
-              className="text-[26px] font-bold font-display text-ink mb-2"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              Better luck next time!
-            </motion.h2>
-
-            <motion.p
-              className="text-ink-muted text-[15px] mb-8 max-w-[280px]"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
-            >
-              No worries — let's finish up your review.
-            </motion.p>
-
-            <motion.button
-              className="w-full max-w-[300px] rounded-2xl bg-primary px-8 py-[18px] text-[17px] font-semibold text-white shadow-card cursor-pointer"
-              whileTap={tapScale.whileTap}
-              onClick={handleContinue}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
-            >
-              Continue to Review
-            </motion.button>
+            <LuckometerReveal scored={scored} onContinue={handleContinue} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -41,4 +41,26 @@ export const haptics = {
   combo: () => vibrate([6, 6, 6, 6, 6]),
   /** A drawn-out pulse. Use during sustained drag (dart aim, bow draw). */
   drag: () => vibrate(4),
+
+  // --- Slider-specific ---
+
+  /** Strong ratchet click. Fire on every detent step while dragging. */
+  sliderTick: () => vibrate(24),
+  /** Heavy zone-snap. Fire when slider crosses a major label boundary. */
+  sliderSnap: () => vibrate([35, 12, 40]),
+
+  // --- Slingshot-specific ---
+
+  /** Light drag feedback on initial slingshot pull. */
+  slingshotDragLight: () => vibrate(10),
+  /** Medium drag feedback on moderate pull. */
+  slingshotDragMedium: () => vibrate([25, 5, 25]),
+  /** Heavy drag feedback on full pull. */
+  slingshotDragHeavy: () => vibrate([40, 8, 50]),
+  /** Sharp snap on slingshot release. */
+  slingshotRelease: () => vibrate([30, 10, 50, 10, 30]),
+  /** Ultra-heavy jar crack impact. */
+  jarCrack: () => vibrate([50, 15, 65, 10, 45]),
+  /** Short double thud for miss. */
+  slingshotMiss: () => vibrate([15, 8, 15]),
 };

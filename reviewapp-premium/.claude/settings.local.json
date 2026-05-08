@@ -7,7 +7,15 @@
       "WebFetch(domain:help.slice.bank.in)",
       "Read(//private/tmp/darts_ref/**)",
       "Read(//private/tmp/tower_ref/**)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(node:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(pkill -f \"node server.js\")",
+      "Bash(curl -s -X POST http://localhost:3001/api/voice-transcribe -H \"Content-Type: audio/webm\" --data-binary \"\")",
+      "Bash(curl -s -X POST https://reviewapp-self.vercel.app/api/voice-transcribe -H 'Content-Type: application/octet-stream' --data-binary '')"
     ]
   }
 }

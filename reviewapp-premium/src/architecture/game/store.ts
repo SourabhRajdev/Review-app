@@ -42,6 +42,7 @@ export interface HardGameResult {
 
 interface GameStore {
   mode: GameMode;
+  visitType: 'first_time' | 'returning' | null;
   swipeAnswers: SwipeAnswer[];
   slingshotAnswers: SlingshotAnswer[];
   basketballAnswer: BasketballAnswer | null;
@@ -51,6 +52,7 @@ interface GameStore {
   perfectFor: string | null;
 
   setMode: (mode: GameMode) => void;
+  setVisitType: (vt: 'first_time' | 'returning') => void;
   addSwipeAnswer: (answer: SwipeAnswer) => void;
   addSlingshotAnswer: (answer: SlingshotAnswer) => void;
   setBasketballAnswer: (answer: BasketballAnswer) => void;
@@ -63,6 +65,7 @@ interface GameStore {
 
 export const useGameStore = create<GameStore>((set) => ({
   mode: null,
+  visitType: null,
   swipeAnswers: [],
   slingshotAnswers: [],
   basketballAnswer: null,
@@ -72,6 +75,7 @@ export const useGameStore = create<GameStore>((set) => ({
   perfectFor: null,
 
   setMode: (mode) => set({ mode }),
+  setVisitType: (visitType) => set({ visitType }),
   addSwipeAnswer: (answer) =>
     set((s) => ({ swipeAnswers: [...s.swipeAnswers, answer] })),
   addSlingshotAnswer: (answer) =>
@@ -90,6 +94,7 @@ export const useGameStore = create<GameStore>((set) => ({
   reset: () =>
     set({
       mode: null,
+      visitType: null,
       swipeAnswers: [],
       slingshotAnswers: [],
       basketballAnswer: null,

@@ -13,6 +13,38 @@ const STATUS_MESSAGES = [
   'Almost ready',
 ];
 
+// ── Branded spinner: ring of 8 dots, staggered opacity/scale ──
+function BrandedSpinner() {
+  const DOTS = 8;
+  return (
+    <div className="relative w-16 h-16 mx-auto">
+      {Array.from({ length: DOTS }).map((_, i) => {
+        const angle = (i / DOTS) * 360;
+        const delay = -(i / DOTS) * 1.4;
+        const x = 24 * Math.cos((angle - 90) * (Math.PI / 180));
+        const y = 24 * Math.sin((angle - 90) * (Math.PI / 180));
+        return (
+          <motion.span
+            key={i}
+            className="absolute w-2.5 h-2.5 rounded-full bg-primary"
+            style={{
+              left: `calc(50% + ${x}px - 5px)`,
+              top: `calc(50% + ${y}px - 5px)`,
+            }}
+            animate={{ opacity: [0.15, 1, 0.15], scale: [0.7, 1, 0.7] }}
+            transition={{
+              duration: 1.4,
+              repeat: Infinity,
+              delay,
+              ease: 'easeInOut',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GeneratingScreen() {
   const go = useNavigation((s) => s.go);
   const game = useGameStore();
@@ -32,11 +64,11 @@ export default function GeneratingScreen() {
   useEffect(() => {
     if (called.current) return;
     called.current = true;
-    
+
     console.log('🔥 [GeneratingScreen] ========== MOUNTED ==========');
     console.log('📝 [GeneratingScreen] Transcript:', transcript);
     console.log('📏 [GeneratingScreen] Transcript length:', transcript?.length || 0);
-    
+
     if (transcript && transcript.trim().length > 0) {
       console.log('🎯 [GeneratingScreen] Using VOICE generation flow');
       handleVoiceGeneration();
@@ -50,7 +82,7 @@ export default function GeneratingScreen() {
     console.log('🎯 [GeneratingScreen] ========== VOICE GENERATION START ==========');
     console.log('📝 [GeneratingScreen] Transcript:', transcript);
     console.log('📏 [GeneratingScreen] Length:', transcript?.length || 0);
-    
+
     try {
       const params = new URLSearchParams(location.search);
       const payload = {
@@ -58,7 +90,7 @@ export default function GeneratingScreen() {
         ...(params.get('biz') && { business_name: params.get('biz') }),
         ...(params.get('hood') && { neighbourhood: params.get('hood') }),
       };
-      
+
       console.log('📤 [GeneratingScreen] Sending to API:', payload);
       console.log('🌐 [GeneratingScreen] API URL: /api/voice-generate');
 
@@ -67,46 +99,46 @@ export default function GeneratingScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
+
       console.log('📥 [GeneratingScreen] Response status:', response.status);
       console.log('📥 [GeneratingScreen] Response ok:', response.ok);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ [GeneratingScreen] API error:', response.status, errorText);
         throw new Error('Voice generation failed');
       }
-      
+
       const data = await response.json();
       console.log('✅ [GeneratingScreen] API response data:', data);
       console.log('📝 [GeneratingScreen] Generated review:', data.review);
       console.log('🤖 [GeneratingScreen] Model used:', data.model);
-      
+
       const reviewText = data.review || transcript;
-      
+
       console.log('💾 [GeneratingScreen] Setting review to:', reviewText);
       setReview(reviewText);
-      
+
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
-      
+
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
       console.log('✅ [GeneratingScreen] Navigation complete');
     } catch (err) {
       console.error('❌ [GeneratingScreen] Voice generation error:', err);
       console.log('🔄 [GeneratingScreen] Using fallback transcript');
-      
-      const fallbackText = transcript && transcript.trim().length > 0 
-        ? transcript 
+
+      const fallbackText = transcript && transcript.trim().length > 0
+        ? transcript
         : 'Thank you for your feedback. Please try again.';
-      
+
       console.log('💾 [GeneratingScreen] Fallback text:', fallbackText);
       setReview(fallbackText);
-      
+
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
-      
+
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
       console.log('✅ [GeneratingScreen] Navigation complete');
@@ -115,92 +147,105 @@ export default function GeneratingScreen() {
 
   function handleGameGeneration() {
     const params = new URLSearchParams(location.search);
-    const swipePositive = game.swipeAnswers.filter((a) => a.positive);
-    const slingshotPhrases = game.slingshotAnswers.map((a) => a.phrase).filter(Boolean);
-    const returnAnswer = game.slingshotAnswers.find((a) => a.questionId === 'return');
-    const compareAnswer = game.slingshotAnswers.find((a) => a.questionId === 'compare');
-    const occasionAnswer = game.slingshotAnswers.find((a) => a.questionId === 'occasion');
 
-    const vibeChips: string[] = [];
-    swipePositive.forEach((a) => {
-      if (a.questionId.startsWith('vibe_')) vibeChips.push(a.questionId.replace('vibe_', ''));
-    });
+    const visitType = game.visitType ?? 'first_time';
+    const itemsOrdered = game.menuItems.length > 0 ? game.menuItems : ['coffee'];
 
-    const visitTypeAnswer = game.swipeAnswers.find((a) => a.questionId === 'visit_type');
-    const visitType = visitTypeAnswer ? (visitTypeAnswer.positive ? 'returning' : 'first_time') : 'first_time';
-    const occasionPhraseMap: Record<string, string> = {
-      'Morning ritual stop': 'morning_routine',
-      'Been wanting to try': 'passing_by',
-      'Friend recommended it': 'catching_up',
-      'Planned visit': 'treating_myself',
-      'Just walked past': 'passing_by',
-      'Killing time': 'work_break',
-      'Random discovery': 'passing_by',
-      'Curiosity got me': 'passing_by',
+    const tempAnswer = game.swipeAnswers.find((a) => a.questionId === 'temperature_right');
+    const busynessAnswer = game.swipeAnswers.find((a) => a.questionId === 'busyness');
+    const worthAnswer = game.swipeAnswers.find((a) => a.questionId === 'worth_price');
+
+    const sensoryChips: string[] = tempAnswer?.positive ? ['served_hot'] : ['fresh'];
+
+    const waitAnswer = game.swipeAnswers.find((a) => a.questionId === 'wait_feeling');
+    let disappointmentChip = 'nothing_perfect';
+    if (tempAnswer && !tempAnswer.positive) disappointmentChip = 'temperature';
+    else if (waitAnswer && !waitAnswer.positive) disappointmentChip = 'wait_too_long';
+
+    const swipeCards = [tempAnswer, worthAnswer].filter(Boolean);
+    const swipePositiveCount = swipeCards.filter((a) => a!.positive).length;
+    const productScore = swipeCards.length > 0
+      ? Math.round((swipePositiveCount / swipeCards.length) * 10)
+      : 7;
+
+    const vibeIdMap: Record<string, string> = {
+      cozy: 'quiet_calm',
+      work: 'work_friendly',
+      instagram: 'great_looking',
+      quiet: 'quiet_calm',
+      music: 'has_music',
+      energizing: 'energizing',
+      cool: 'cool_refreshing',
+      social: 'social_buzzing',
     };
-    let occasion = occasionAnswer?.phrase
-      ? (occasionPhraseMap[occasionAnswer.phrase] || 'passing_by')
-      : 'passing_by';
+    const vibeAnswers = game.swipeAnswers.filter((a) => a.questionId.startsWith('vibe_') && a.positive);
+    const vibeChips = vibeAnswers
+      .map((a) => vibeIdMap[a.questionId.replace('vibe_', '')])
+      .filter(Boolean);
+    if (busynessAnswer?.positive && !vibeChips.includes('social_buzzing')) vibeChips.push('social_buzzing');
+    else if (busynessAnswer && !busynessAnswer.positive && !vibeChips.includes('quiet_calm')) vibeChips.push('quiet_calm');
+    const finalVibeChips = vibeChips.length > 0 ? vibeChips : ['work_friendly'];
 
-    const totalQuestions = game.swipeAnswers.length + game.slingshotAnswers.length;
-    const positiveCount = swipePositive.length + game.slingshotAnswers.filter((a) => a.positive).length;
-    let overallScore = totalQuestions > 0 ? Math.round((positiveCount / totalQuestions) * 10) : 7;
+    let occasion = 'treating_myself';
+    if (vibeAnswers.some((a) => a.questionId === 'vibe_work')) occasion = 'work_break';
+    else if (vibeAnswers.some((a) => a.questionId === 'vibe_social')) occasion = 'catching_up';
+    else if (vibeAnswers.some((a) => a.questionId === 'vibe_cozy')) occasion = 'morning_routine';
 
-    const experienceAnswer = game.swipeAnswers.find((a) => a.questionId === 'experience');
-    const staffAnswer = game.swipeAnswers.find((a) => a.questionId === 'staff');
+    const returnJar = game.slingshotAnswers.find((a) => a.questionId === 'return');
+    const valueJar = game.slingshotAnswers.find((a) => a.questionId === 'value');
+    const recommendJar = game.slingshotAnswers.find((a) => a.questionId === 'recommend');
 
-    let finalVibeChips = vibeChips.length > 0 ? vibeChips : ['work_friendly'];
-    let finalSensoryChips = game.sensoryChips.length > 0 ? game.sensoryChips : ['fresh'];
-    let finalReturnIntent = returnAnswer ? (returnAnswer.positive ? 'definitely' : 'probably') : 'definitely';
-    let finalComparisonChip = compareAnswer
-      ? (compareAnswer.positive ? 'better_than_usual' : 'usual_still_wins')
+    const returnIntentMap: Record<string, string> = {
+      'Definitely returning!': 'definitely',
+      'My new regular': 'always',
+      'Maybe someday': 'probably',
+      'Once was enough': 'barely',
+    };
+    const comparisonMap: Record<string, string> = {
+      'Worth every penny': 'better_than_usual',
+      'Great value!': 'new_regular',
+      'A bit pricey': 'usual_still_wins',
+      'Overpriced': 'usual_still_wins',
+    };
+    const recommendForMap: Record<string, string> = {
+      'Highly recommend!': 'catching_up',
+      'Must try!': 'catching_up',
+      'Not for everyone': 'solo_work',
+      'Would skip': 'solo_work',
+    };
+
+    const returnIntentFromJar = returnJar?.phrase ? (returnIntentMap[returnJar.phrase] || 'definitely') : null;
+    const returnIntentFromBasketball = game.basketballAnswer?.scored ? 'definitely' : 'probably';
+    const finalReturnIntent = returnIntentFromJar ?? returnIntentFromBasketball;
+
+    const worthChip = worthAnswer
+      ? (worthAnswer.positive ? 'better_than_usual' : 'usual_still_wins')
       : 'better_than_usual';
+    const finalComparison = valueJar?.phrase ? (comparisonMap[valueJar.phrase] || worthChip) : worthChip;
+    const recommendFor = recommendJar?.phrase ? (recommendForMap[recommendJar.phrase] || 'quick_break') : 'quick_break';
 
-    const dartsResult = game.hardGameResults.find((r) => r.gameId === 'darts');
-    const stackResult = game.hardGameResults.find((r) => r.gameId === 'stackTower');
-    const sliceResult = game.hardGameResults.find((r) => r.gameId === 'sparkSlice');
+    const selectedPhrases = game.slingshotAnswers.map((a) => a.phrase).filter(Boolean);
 
-    if (dartsResult && typeof dartsResult.signalValue === 'string') occasion = dartsResult.signalValue;
-    if (stackResult && Array.isArray(stackResult.signalValue) && stackResult.signalValue.length > 0)
-      finalVibeChips = stackResult.signalValue;
-    if (sliceResult && Array.isArray(sliceResult.signalValue) && sliceResult.signalValue.length > 0)
-      finalSensoryChips = sliceResult.signalValue;
-
-    const basketball = game.basketballAnswer;
-    if (basketball) {
-      const recommendMap: Record<string, string> = {
-        absolutely: 'always',
-        probably: 'definitely',
-        maybe: 'probably',
-        not_sure: 'barely',
-      };
-      finalReturnIntent = recommendMap[basketball.selectedOption] || finalReturnIntent;
-    }
-
-    if (game.hardGameResults.length > 0) {
-      const avgPct = game.hardGameResults.reduce((acc, r) => acc + r.scorePercent, 0) / game.hardGameResults.length;
-      overallScore = Math.max(1, Math.min(10, Math.round((avgPct / 100) * 10)));
-    }
+    let overallScore = productScore;
+    if (finalReturnIntent === 'barely') overallScore = Math.min(overallScore, 4);
+    if (finalReturnIntent === 'always') overallScore = Math.max(overallScore, 8);
+    overallScore = Math.max(1, Math.min(10, overallScore));
 
     const payload = {
       business_name: params.get('biz') || 'this spot',
       neighbourhood: params.get('hood') || 'downtown',
       visit_type: visitType,
       occasion,
-      items_ordered: game.menuItems.length > 0 ? game.menuItems : ['coffee'],
+      items_ordered: itemsOrdered,
       product_sentiment: overallScore >= 7 ? 'loved_it' : overallScore >= 5 ? 'it_was_good' : 'not_what_i_expected',
-      sensory_chips: finalSensoryChips,
+      sensory_chips: sensoryChips,
       overall_score: overallScore,
-      disappointment_chip: experienceAnswer && !experienceAnswer.positive
-        ? 'wait_too_long'
-        : staffAnswer && !staffAnswer.positive
-          ? 'staff_inattentive'
-          : 'nothing_perfect',
+      disappointment_chip: disappointmentChip,
       return_intent: finalReturnIntent,
-      comparison_chip: finalComparisonChip,
+      comparison_chip: finalComparison,
       vibe_chips: finalVibeChips,
-      recommend_for: game.perfectFor === 'friends' ? 'catching_up' : (game.perfectFor || 'quick_break'),
-      selected_phrases: slingshotPhrases,
+      recommend_for: recommendFor,
+      selected_phrases: selectedPhrases,
     };
 
     fetch(`/api/generate`, {
@@ -210,12 +255,10 @@ export default function GeneratingScreen() {
     })
       .then((r) => r.json())
       .then((data) => {
-        console.log('[GeneratingScreen] Game generation API response:', data);
         setReview(data.review || '');
         go('review');
       })
-      .catch((err) => {
-        console.error('[GeneratingScreen] Game generation network error:', err);
+      .catch(() => {
         setReview('');
         go('review');
       });
@@ -223,25 +266,17 @@ export default function GeneratingScreen() {
 
   return (
     <ScreenShell className="items-center justify-center text-center" hideProgress hideBack>
-      {/* Simple spinner */}
-      <div className="relative w-16 h-16 mx-auto mb-8">
-        <svg className="w-16 h-16 animate-spin-slow" viewBox="0 0 64 64" fill="none">
-          <circle cx="32" cy="32" r="28" stroke="#D6D3D1" strokeWidth="3" />
-          <path
-            d="M32 4a28 28 0 0128 28"
-            stroke="#B8622D"
-            strokeWidth="3"
-            strokeLinecap="round"
-          />
-        </svg>
+      {/* Branded spinner — 8-dot ring, coffee brown dots */}
+      <div className="mb-8">
+        <BrandedSpinner />
       </div>
 
-      {/* Cycling status */}
+      {/* Cycling status messages */}
       <div className="h-7 relative flex items-center justify-center">
         <AnimatePresence mode="wait">
           <motion.p
             key={messageIdx}
-            className="text-body text-ink-secondary"
+            className="text-body font-medium text-ink-secondary"
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
