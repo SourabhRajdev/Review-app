@@ -8,7 +8,7 @@ interface LuckState {
   cupGameLuck: number;     // 0 or 30
   totalLuck: number;       // 0–100
   tier: LuckTier;
-  setBasketballLuck: (scored: boolean) => void;
+  setBasketballLuck: (points: number) => void;
   setSlingshotLuck: (positiveRatio: number) => void;
   setCupGameLuck: (won: boolean) => void;
   reset: () => void;
@@ -28,11 +28,10 @@ export const useLuckStore = create<LuckState>((set, get) => ({
   totalLuck: 0,
   tier: 'cold',
 
-  setBasketballLuck: (scored) => {
-    const val = scored ? 35 : 0;
+  setBasketballLuck: (points) => {
     const { slingshotLuck, cupGameLuck } = get();
-    const total = val + slingshotLuck + cupGameLuck;
-    set({ basketballLuck: val, totalLuck: total, tier: calcTier(total) });
+    const total = points + slingshotLuck + cupGameLuck;
+    set({ basketballLuck: points, totalLuck: total, tier: calcTier(total) });
   },
 
   setSlingshotLuck: (positiveRatio) => {

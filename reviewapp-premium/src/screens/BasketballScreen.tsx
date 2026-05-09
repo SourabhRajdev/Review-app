@@ -8,7 +8,10 @@
 // After the user scores a basket, a random discount (1-10%) is revealed.
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  motion, AnimatePresence,
+  useMotionValue, useSpring
+} from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useGameStore } from '@/architecture/game/store';
@@ -43,19 +46,29 @@ const CANVAS_W = 360;
 const CANVAS_H = 540;
 const HOOP_X = CANVAS_W / 2;
 const HOOP_Y = 130;
-const HOOP_WIDTH = 80;
+const BASE_HOOP_WIDTH = 80;
 const BALL_RADIUS = 26;
 const GRAVITY = 0.25;
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS = 3;
 const AIM_ASSIST = 0.45;
+
+const SCORING = {
+  ATTEMPT_1: 25,
+  ATTEMPT_2: 22,
+  ATTEMPT_3: 11,
+} as const;
 
 // ── CANVAS BASKETBALL GAME ──
 
-function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMissedAll: () => void }) {
+function BasketballGame({ onScore, onMissedAll }: { onScore: (attempt: number) => void; onMissedAll: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef(0);
   const scoredRef = useRef(false);
   const attemptsRef = useRef(0);
+
+  // Hoop scaling for difficulty
+  const hoopScale = useMotionValue(1);
+  const hoopScaleSpring = useSpring(hoopScale, { stiffness: 300, damping: 25 });
 
   const bx = useRef(CANVAS_W / 2);
   const by = useRef(CANVAS_H - 80);
@@ -85,12 +98,14 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
     bvy.current = 0;
     launched.current = false;
     trail.current = [];
-  }, []);
+
+    // Scale hoop based on attempts
+    if (attemptsRef.current === 1) hoopScale.set(0.8);
+    if (attemptsRef.current === 2) hoopScale.set(0.62);
+  }, [hoopScale]);
 
   useEffect(() => {
     let running = true;
-    const leftRimX = HOOP_X - HOOP_WIDTH / 2;
-    const rightRimX = HOOP_X + HOOP_WIDTH / 2;
 
     function tick() {
       if (!running) return;
@@ -99,6 +114,12 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       if (!canvas) { animRef.current = requestAnimationFrame(tick); return; }
       const ctx = canvas.getContext('2d');
       if (!ctx) { animRef.current = requestAnimationFrame(tick); return; }
+
+      // Get current hoop dimensions from spring
+      const currentScale = hoopScaleSpring.get();
+      const currentHoopWidth = BASE_HOOP_WIDTH * currentScale;
+      const leftRimX = HOOP_X - currentHoopWidth / 2;
+      const rightRimX = HOOP_X + currentHoopWidth / 2;
 
       // Physics update
       if (launched.current && !scoredRef.current) {
@@ -153,9 +174,9 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
           bx.current < rightRimX - 4
         ) {
           scoredRef.current = true;
-          audio.bullseye();
+          audio.cheer();
           haptics.jackpot();
-          setTimeout(() => onScore(), 500);
+          setTimeout(() => onScore(attemptsRef.current), 500);
         }
 
         if (bx.current < BALL_RADIUS) {
@@ -174,7 +195,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
 
         if (by.current > CANVAS_H + 50) {
           attemptsRef.current++;
-          audio.miss();
+          audio.boo();
           haptics.miss();
           if (attemptsRef.current >= MAX_ATTEMPTS) {
             scoredRef.current = true;
@@ -189,7 +210,8 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
       // Backboard
-      const bbW = 100, bbH = 65;
+      const bbScale = Math.max(0.82, currentScale);
+      const bbW = 100 * bbScale, bbH = 65 * bbScale;
       ctx.fillStyle = BACKBOARD_BG;
       ctx.beginPath();
       ctx.roundRect(HOOP_X - bbW / 2, HOOP_Y - bbH + 8, bbW, bbH, 8);
@@ -202,7 +224,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       ctx.strokeStyle = RIM_COLOR;
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.ellipse(HOOP_X, HOOP_Y, HOOP_WIDTH / 2, 7, 0, Math.PI, Math.PI * 2);
+      ctx.ellipse(HOOP_X, HOOP_Y, currentHoopWidth / 2, 7 * currentScale, 0, Math.PI, Math.PI * 2);
       ctx.stroke();
 
       // Net
@@ -210,17 +232,17 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       ctx.lineWidth = 1.2;
       for (let i = 0; i <= 5; i++) {
         const t = i / 5;
-        const sx = leftRimX + t * HOOP_WIDTH;
-        const ex = leftRimX + 8 + t * (HOOP_WIDTH - 16);
+        const sx = leftRimX + t * currentHoopWidth;
+        const ex = leftRimX + (8 * currentScale) + t * (currentHoopWidth - (16 * currentScale));
         ctx.beginPath();
         ctx.moveTo(sx, HOOP_Y);
-        ctx.quadraticCurveTo((sx + ex) / 2, HOOP_Y + 22, ex, HOOP_Y + 35);
+        ctx.quadraticCurveTo((sx + ex) / 2, HOOP_Y + (22 * currentScale), ex, HOOP_Y + (35 * currentScale));
         ctx.stroke();
       }
       ctx.strokeStyle = NET_CROSS;
       for (let row = 0; row < 3; row++) {
-        const ry = HOOP_Y + 8 + row * 10;
-        const shrink = row * 3;
+        const ry = HOOP_Y + (8 * currentScale) + row * (10 * currentScale);
+        const shrink = row * (3 * currentScale);
         ctx.beginPath();
         ctx.moveTo(leftRimX + shrink, ry);
         ctx.lineTo(rightRimX - shrink, ry);
@@ -270,15 +292,16 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
       ctx.strokeStyle = RIM_FRONT;
       ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.ellipse(HOOP_X, HOOP_Y, HOOP_WIDTH / 2, 7, 0, 0, Math.PI);
+      ctx.ellipse(HOOP_X, HOOP_Y, currentHoopWidth / 2, 7 * currentScale, 0, 0, Math.PI);
       ctx.stroke();
       ctx.fillStyle = RIM_DOT;
       ctx.beginPath();
-      ctx.arc(leftRimX, HOOP_Y, 4, 0, Math.PI * 2);
+      ctx.arc(leftRimX, HOOP_Y, 4 * currentScale, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.arc(rightRimX, HOOP_Y, 4, 0, Math.PI * 2);
+      ctx.arc(rightRimX, HOOP_Y, 4 * currentScale, 0, Math.PI * 2);
       ctx.fill();
+
 
       // Aim line
       if (dragging.current && !launched.current) {
@@ -306,7 +329,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: () => void; onMisse
         if (attemptsRef.current === 0) {
           ctx.fillText('Swipe the ball up to shoot!', CANVAS_W / 2, CANVAS_H - 16);
         } else {
-          ctx.fillText(`Try again! (${attemptsRef.current}/${MAX_ATTEMPTS})`, CANVAS_W / 2, CANVAS_H - 16);
+          ctx.fillText(`Try again! (${attemptsRef.current + 1}/${MAX_ATTEMPTS})`, CANVAS_W / 2, CANVAS_H - 16);
         }
 
         // Animated arrow above ball
@@ -522,10 +545,11 @@ const TIER_CONFIG = {
   fire:  { label: 'FIRE',  color: '#DC2626', bg: 'rgba(220,38,38,0.1)',   border: 'rgba(220,38,38,0.25)' },
 };
 
-function LuckometerReveal({ scored, onContinue }: { scored: boolean; onContinue: () => void }) {
+function LuckometerReveal({ points, onContinue }: { points: number; onContinue: () => void }) {
   const totalLuck = useLuckStore((s) => s.totalLuck);
   const tier = useLuckStore((s) => s.tier);
   const tc = TIER_CONFIG[tier];
+  const scored = points > 0;
 
   return (
     <>
@@ -550,7 +574,7 @@ function LuckometerReveal({ scored, onContinue }: { scored: boolean; onContinue:
           {scored ? 'Nice shot!' : 'Better luck next time!'}
         </h2>
         <p className="text-body text-ink-secondary mb-6">
-          {scored ? 'You scored +35 luck points' : 'No luck points this round'}
+          {scored ? `You scored +${points} luck points` : 'No luck points this round'}
         </p>
 
         {/* Points card */}
@@ -584,7 +608,7 @@ function LuckometerReveal({ scored, onContinue }: { scored: boolean; onContinue:
             animate={{ scale: [0, 1.25, 1] }}
             transition={{ delay: 0.65, duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           >
-            {scored ? '+35' : '+0'}
+            {scored ? `+${points}` : '+0'}
           </motion.p>
 
           {/* Luckometer bar */}
@@ -646,10 +670,15 @@ export default function BasketballScreen() {
   const setBasketballLuck = useLuckStore((s) => s.setBasketballLuck);
   const mode = useGameStore((s) => s.mode);
   const [phase, setPhase] = useState<Phase>('game');
-  const [scored, setScored] = useState(false);
+  const [points, setPoints] = useState(0);
 
-  function handleScore() {
-    setScored(true);
+  function handleScore(attempt: number) {
+    let earned = 0;
+    if (attempt === 0) earned = SCORING.ATTEMPT_1;
+    else if (attempt === 1) earned = SCORING.ATTEMPT_2;
+    else earned = SCORING.ATTEMPT_3;
+
+    setPoints(earned);
     setBasketballAnswer({
       questionId: 'recommend_reward',
       question: 'Bonus Reward',
@@ -657,14 +686,13 @@ export default function BasketballScreen() {
       scored: true,
       discount: 0,
     });
-    setBasketballLuck(true);
-    audio.bullseye();
+    setBasketballLuck(earned);
     haptics.impact();
     setTimeout(() => setPhase('reward'), 600);
   }
 
   function handleMissedAll() {
-    setScored(false);
+    setPoints(0);
     setBasketballAnswer({
       questionId: 'recommend_reward',
       question: 'Bonus Reward',
@@ -672,7 +700,7 @@ export default function BasketballScreen() {
       scored: false,
       discount: 0,
     });
-    setBasketballLuck(false);
+    setBasketballLuck(0);
     setTimeout(() => setPhase('reward'), 400);
   }
 
@@ -728,7 +756,7 @@ export default function BasketballScreen() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <LuckometerReveal scored={scored} onContinue={handleContinue} />
+            <LuckometerReveal points={points} onContinue={handleContinue} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -473,12 +473,15 @@ export default function SpinWheelScreen() {
     audio.tap();
     setPhase('spinning');
 
+    // Task 4: Determined solely by Luck-O-Meter score (0-100)
+    const sanitizedScore = (typeof totalLuck === 'number' && !isNaN(totalLuck)) ? totalLuck : 0;
+    
     let resolvedIdx: number;
     try {
       const res = await fetch('/api/spin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ luckScore: totalLuck }),
+        body: JSON.stringify({ luckScore: sanitizedScore }),
       });
       if (!res.ok) throw new Error('api_error');
       const data = await res.json();

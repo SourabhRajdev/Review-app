@@ -156,5 +156,26 @@ export const audio = {
   /** Combo confirmation — short rising blip. */
   combo() {
     sweep(620, 1240, 0.1, 0.12);
+  },
+  /** Synthesized crowd cheer (Woah!) — rising pitch + noise burst. */
+  cheer() {
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+      // Rising pitch burst
+      sweep(400, 900, 0.4, 0.15);
+      // Clapping-like noise envelope
+      setTimeout(() => noiseBurst(0.6, 0.1, 1500), 100);
+      setTimeout(() => noiseBurst(0.4, 0.08, 1200), 300);
+    } catch { /* fail silently */ }
+  },
+  /** Synthesized crowd boo — low descending groan. */
+  boo() {
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+      sweep(180, 120, 0.5, 0.2);
+      noiseBurst(0.5, 0.05, 500);
+    } catch { /* fail silently */ }
   }
 };

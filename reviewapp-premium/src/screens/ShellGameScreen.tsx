@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   motion, AnimatePresence,
-  useMotionValue, animate,
+  useMotionValue, useSpring, animate,
   type MotionValue,
 } from 'framer-motion';
 import ScreenShell from './ScreenShell';
@@ -200,6 +200,12 @@ export default function ShellGameScreen() {
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
   const [gameResult, setGameResult]     = useState<{ result: 'win' | 'lose'; ballAt: number } | null>(null);
 
+  // ── Physics drop state ──
+  const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, visible: false });
+  const ballPhysRef = useRef({ x: 0, y: 0, vy: 0, frame: 0, active: false });
+  const cupPhysY = useMotionValue(300); // Start below the arena
+  const cupPhysSpring = useSpring(cupPhysY, { stiffness: 400, damping: 30 });
+
   // ── Cup motion values ──
   const cup0X = useMotionValue<number>(SLOT_X[0]);
   const cup1X = useMotionValue<number>(SLOT_X[1]);
@@ -368,6 +374,57 @@ export default function ShellGameScreen() {
     });
 
     setPhase('ball_drop');
+
+    // ── Start physics drop sequence ──
+    const startY = 80;
+    const targetY = window.innerHeight * 0.82;
+    const dropDist = targetY - startY;
+    const interceptTrigger = startY + dropDist * 0.7;
+    
+    ballPhysRef.current = { x: 0, y: startY, vy: 0, frame: 0, active: true };
+    setBallPhys({ x: 0, y: startY, visible: true });
+    cupPhysY.set(400); // Start way down
+
+    const runLoop = () => {
+      if (!ballPhysRef.current.active) return;
+      
+      const p = ballPhysRef.current;
+      p.frame++;
+      
+      // STEP 2: Ball physics drop
+      const GRAVITY = 0.6;
+      const MAX_VY = 28;
+      p.vy = Math.min(p.vy + GRAVITY, MAX_VY);
+      p.y += p.vy;
+      
+      // Horizontal wobble
+      p.x = Math.sin(p.frame * 0.3) * 0.4;
+      
+      setBallPhys({ x: p.x, y: p.y, visible: true });
+      
+      // STEP 3: Cup intercept
+      if (p.y >= interceptTrigger) {
+        cupPhysY.set(p.y); // Meet the ball
+      }
+      
+      // STEP 4: Cup captures ball
+      const threshold = 8;
+      if (p.y >= targetY - threshold || (p.y >= cupPhysSpring.get() - threshold && p.y > interceptTrigger)) {
+        p.active = false;
+        setBallPhys(prev => ({ ...prev, visible: false }));
+        haptics.press();
+        // Seamless transition to cup_show/shuffle
+        setTimeout(() => {
+          setPhase('cup_show');
+          cupPhysY.set(0); // Reset for standard cup layout
+        }, 50);
+        return;
+      }
+      
+      requestAnimationFrame(runLoop);
+    };
+    
+    requestAnimationFrame(runLoop);
   }
 
   function handleContinueWin() {
@@ -419,7 +476,7 @@ export default function ShellGameScreen() {
               className="flex-1 flex flex-col justify-center px-1 py-8"
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -60, transition: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }}
+              exit={{ opacity: 0, y: -40, transition: { duration: 0.28, ease: "easeOut" } }}
               transition={spring.gentle}
             >
               {/* Badge */}
@@ -495,34 +552,26 @@ export default function ShellGameScreen() {
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Ball drops from top-center to center-bottom */}
+              {/* Ball falling with physics */}
+              {ballPhys.visible && (
+                <motion.div
+                  className="absolute left-1/2"
+                  style={{ 
+                    x: `calc(-50% + ${ballPhys.x}px)`, 
+                    top: ballPhys.y 
+                  }}
+                >
+                  <BallSVG size={52} colors={answerColors} />
+                </motion.div>
+              )}
+
+              {/* Rising cup to catch ball */}
               <motion.div
                 className="absolute left-1/2 -translate-x-1/2"
-                style={{ top: 80 }}
-                initial={{ scale: 0.3, opacity: 0, y: 0 }}
-                animate={{
-                  scale: [0.3, 1.08, 0.96, 1.02, 1],
-                  opacity: [0, 1, 1, 1, 1],
-                  y: [0, 195, 172, 185, 179],
-                }}
-                transition={{
-                  duration: 1.05,
-                  times: [0, 0.48, 0.63, 0.79, 1],
-                  ease: 'easeOut',
-                }}
-                onAnimationComplete={() => setTimeout(() => setPhase('cup_show'), 180)}
+                style={{ top: cupPhysSpring, zIndex: 10 }}
               >
-                <BallSVG size={52} colors={answerColors} />
+                <CupSVG highlighted={false} lifted />
               </motion.div>
-
-              {/* Subtle ground shadow that pulses */}
-              <motion.div
-                className="absolute left-1/2 -translate-x-1/2 rounded-full"
-                style={{ bottom: 148, width: 40, height: 8, background: 'rgba(0,0,0,0.12)', filter: 'blur(4px)' }}
-                initial={{ scaleX: 0.4, opacity: 0 }}
-                animate={{ scaleX: [0.4, 1, 0.85, 0.94, 0.9], opacity: [0, 0.6, 0.5, 0.55, 0.52] }}
-                transition={{ duration: 1.05, times: [0, 0.48, 0.63, 0.79, 1] }}
-              />
             </motion.div>
           )}
 

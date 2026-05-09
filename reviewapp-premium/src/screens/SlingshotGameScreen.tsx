@@ -219,6 +219,7 @@ export default function SlingshotGameScreen() {
   const arenaRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const lastPullYBucket = useRef(0);
+  const lastAimedJarRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const windTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -271,7 +272,11 @@ export default function SlingshotGameScreen() {
     // Real-time trajectory prediction for jar highlighting
     if (newPullY >= PHYSICS.MIN_POWER) {
       const trajectory = calculateTrajectory(newPullX, newPullY, wind.force);
-      setPredictedJarIdx(checkHit(trajectory));
+      const hitIdx = checkHit(trajectory);
+      setPredictedJarIdx(hitIdx);
+      if (hitIdx !== null) {
+        lastAimedJarRef.current = hitIdx;
+      }
     } else {
       setPredictedJarIdx(null);
     }
@@ -299,7 +304,23 @@ export default function SlingshotGameScreen() {
       setShowPowerWarning(true);
       haptics.bump();
       setTimeout(() => setShowPowerWarning(false), 2000);
+      lastAimedJarRef.current = null;
       return;
+    }
+
+    // Commit the intended signal (the jar they were aiming at)
+    if (lastAimedJarRef.current !== null) {
+      const answerIdx = lastAimedJarRef.current;
+      const answer = currentRound.answers[answerIdx];
+      
+      addSlingshotAnswer({
+        questionId: currentRound.id,
+        question: currentRound.question,
+        positive: answerIdx < 2,
+        phrase: answer,
+      });
+      
+      lastAimedJarRef.current = null;
     }
 
     fire();
@@ -441,18 +462,14 @@ export default function SlingshotGameScreen() {
     }, 1200);
   }
 
-  function handleAnswerPick(answer: string, answerIdx: number) {
+  function handleAnswerPick(answer: string, _answerIdx: number) {
     if (pickedAnswer) return;
     setPickedAnswer(answer);
     audio.tick();
     haptics.tick();
 
-    addSlingshotAnswer({
-      questionId: currentRound.id,
-      question: currentRound.question,
-      positive: answerIdx < 2,
-      phrase: answer,
-    });
+    // NOTE: Signal now committed on release in handlePointerUp
+    // This function now only handles the UI advancement after impact.
 
     setTimeout(() => {
       advanceRound();
