@@ -82,12 +82,14 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
 
   return (
     <div
-      className="absolute inset-0 pointer-events-none overflow-hidden"
+      className="absolute left-0 right-0 pointer-events-none overflow-hidden"
       style={{
+        top: '15%',
+        bottom: '35%',
         opacity,
         // Flip horizontally if wind is blowing left
         transform: wind.direction === 'left' ? 'scaleX(-1)' : 'scaleX(1)',
-        zIndex: 1,
+        zIndex: 5,
       }}
     >
       <Lottie
@@ -96,6 +98,7 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
         loop={true}
         autoplay={true}
         style={{ width: '100%', height: '100%' }}
+        rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
       />
     </div>
   );
