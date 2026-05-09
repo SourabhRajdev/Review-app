@@ -2,23 +2,26 @@
 import fs from 'fs';
 import path from 'path';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-
 // Cache the guide in memory across warm invocations
 let guideCache = '';
 
-const GUIDE_REL = path.join('reviewapp-premium', 'src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
-const GUIDE_REL_LOCAL = path.join('src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
-
 function resolveGuidePath(): string {
+  const GUIDE_REL = path.join('reviewapp-premium', 'src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
+  const GUIDE_REL_LOCAL = path.join('src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
+
   // Try to find the guide in multiple locations to support both root and subproject deployments
   const candidates = [
     path.join(process.cwd(), GUIDE_REL),               // Root deployment
     path.join(process.cwd(), GUIDE_REL_LOCAL),         // Subproject deployment (local dev)
-    path.join(__dirname, '..', GUIDE_REL),             // Absolute relative to api/
-    path.join(__dirname, '..', GUIDE_REL_LOCAL),       // Absolute relative to api/ in subproject
   ];
+
+  // Also try relative to this file
+  try {
+    const __dirname = path.dirname(new URL(import.meta.url).pathname);
+    candidates.push(path.join(__dirname, '..', GUIDE_REL));
+    candidates.push(path.join(__dirname, '..', GUIDE_REL_LOCAL));
+  } catch { /* skip if ESM/CommonJS mismatch */ }
+
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) return p;
@@ -32,14 +35,18 @@ export function getGuide(): string {
   try {
     const guidePath = resolveGuidePath();
     guideCache = fs.readFileSync(guidePath, 'utf8');
-  } catch {
-    console.warn('REVIEW_GENERATION_GUIDE.md not found');
+  } catch (err) {
+    console.warn('REVIEW_GENERATION_GUIDE.md not found:', err);
   }
   return guideCache;
 }
 
 export function getApiKey(): string {
-  return GEMINI_API_KEY;
+  return (process.env.GEMINI_API_KEY || '').trim();
+}
+
+export function getModel(): string {
+  return (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
 }
 
 export async function callGemini(
@@ -47,9 +54,15 @@ export async function callGemini(
   userPrompt: string,
   guideText: string
 ): Promise<string> {
+  const apiKey = getApiKey();
+  const model = getModel();
+
+  if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
+
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    MODEL
-  )}:generateContent?key=${GEMINI_API_KEY}`;
+    model
+  )}:generateContent?key=${apiKey}`;
+...
 
   const systemParts: { text: string }[] = [{ text: systemPrompt }];
   if (guideText) {

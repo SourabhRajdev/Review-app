@@ -1,7 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-const GEMINI_API_KEY = (process.env.GEMINI_API_KEY || '').trim();
+import { getApiKey, getModel, sanitizeReview } from './_shared';
 
 const SYSTEM_PROMPT = `You are a review generation engine. The customer will give you a raw voice transcript of their experience at a restaurant or café.
 
@@ -24,10 +22,15 @@ RULES (absolute):
 - Output ONLY the 3 sentences separated by newlines. Nothing else.`;
 
 async function callGemini(transcript: string, bizName: string, hood: string): Promise<string> {
+  const apiKey = getApiKey();
+  const model = getModel();
+  
+  if (!apiKey) throw new Error('GEMINI_API_KEY is missing');
+
   const meta = [bizName && `Business: ${bizName}`, hood && `Location: ${hood}`].filter(Boolean).join('\n');
   const userPrompt = `VOICE TRANSCRIPT:\n"""\n${transcript.trim()}\n"""${meta ? `\n\nMETADATA (supplement only):\n${meta}` : ''}\n\nGenerate the 3-sentence review now.`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`;
 
   const r = await fetch(url, {
     method: 'POST',
@@ -54,27 +57,6 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
     .trim();
 }
 
-function sanitize(raw: string): string {
-  if (!raw) return '';
-  // Clean up unwanted characters/labels
-  let text = raw
-    .replace(/\s*—\s*/g, ', ')
-    .replace(/\s*--\s*/g, ', ')
-    .replace(/\s*–\s*/g, ', ')
-    .replace(/^review:/i, '')
-    .trim();
-
-  // Robust sentence splitting using regex (handles . ! ? followed by space or end of string)
-  const sentences = text
-    .split(/(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$/)
-    .map(s => s.trim())
-    .filter(s => s.length > 5);
-
-  // Return exactly 3 sentences if possible, otherwise what we have (up to 3)
-  const result = sentences.slice(0, 3);
-  return result.join('\n');
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -86,13 +68,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { transcript, business_name = '', neighbourhood = '' } = req.body || {};
 
   if (!transcript?.trim()) return res.status(400).json({ error: 'transcript required' });
-  if (!GEMINI_API_KEY) return res.status(200).json({ review: transcript.trim(), model: 'no-key' });
 
   try {
+    if (!getApiKey()) {
+      return res.status(200).json({ review: transcript.trim(), model: 'local-fallback' });
+    }
     const raw = await callGemini(transcript, business_name, neighbourhood);
-    const review = sanitize(raw);
+    const review = sanitizeReview(raw);
     if (!review) return res.status(200).json({ review: transcript.trim(), model: 'empty-response' });
-    return res.status(200).json({ review, model: GEMINI_MODEL });
+    return res.status(200).json({ review, model: getModel() });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('voice-generate error:', msg);

@@ -114,13 +114,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signalsJson = buildSignalsJson(signals);
     const raw = await callGemini(SYSTEM_PROMPT, signalsJson, guide);
     const review = sanitizeReview(raw || '') || localFallback(signals);
-    res.json({ review, model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' });
+    res.json({ review, model: getModel() });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('generate error:', message);
     res.status(200).json({
       review: localFallback(req.body || {}),
       model: 'local-fallback',
+      warning: 'AI call failed'
+    });
+  }
+}
       warning: 'AI call failed'
     });
   }
