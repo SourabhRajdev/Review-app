@@ -114,7 +114,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const signalsJson = buildSignalsJson(signals);
     const raw = await callGemini(SYSTEM_PROMPT, signalsJson, guide);
     const review = sanitizeReview(raw || '') || localFallback(signals);
-    res.json({ review, model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
+    res.json({ review, model: process.env.GEMINI_MODEL || 'gemini-2.0-flash' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('generate error:', message);
