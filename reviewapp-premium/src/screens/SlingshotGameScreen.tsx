@@ -52,8 +52,6 @@ interface WindOverlayProps {
 function WindOverlay({ wind, visible }: WindOverlayProps) {
   const lottieRef = useRef<LottieRefCurrentProps>(null);
 
-  if (!visible || wind.direction === 'calm') return null;
-
   // Speed of animation inversely proportional to strength
   const speedMap = {
     calm: 1,
@@ -79,6 +77,8 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
       lottieRef.current.setSpeed(speed);
     }
   }, [speed]);
+
+  if (!visible || wind.direction === 'calm') return null;
 
   return (
     <div
