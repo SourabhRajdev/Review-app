@@ -220,6 +220,7 @@ export default function SlingshotGameScreen() {
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const lastPullYBucket = useRef(0);
   const lastAimedJarRef = useRef<number | null>(null);
+  const intendedJarRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const windTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -444,6 +445,14 @@ export default function SlingshotGameScreen() {
     haptics.jarCrack();
     audio.bullseye();
 
+    // Accuracy scoring
+    const intended = intendedJarRef.current;
+    const isAccurate = intended !== null && answerIdx === intended;
+    const maxLuck = 35; // Total possible luck for Slingshot game
+    const roundLuck = Math.floor(maxLuck / ROUNDS.length);
+    const points = isAccurate ? roundLuck : Math.floor(roundLuck / 2);
+    setSlingshotLuck(points / maxLuck);
+
     setTimeout(() => setShaking(false), 500);
 
     setSpilled([
@@ -457,9 +466,7 @@ export default function SlingshotGameScreen() {
       },
     ]);
 
-    setTimeout(() => {
-      handleAnswerPick(answer, answerIdx);
-    }, 1200);
+    setTimeout(() => handleAnswerPick(answer, answerIdx), 1200);
   }
 
   function handleAnswerPick(answer: string, _answerIdx: number) {
