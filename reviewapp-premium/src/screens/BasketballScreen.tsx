@@ -54,7 +54,7 @@ const AIM_ASSIST = 0.45;
 const MIN_HOOP_WIDTH = BALL_RADIUS * 2 + 8; // 60px — always passable
 
 const SCORING = {
-  ATTEMPT_1: 25,
+  ATTEMPT_1: 35,
   ATTEMPT_2: 22,
   ATTEMPT_3: 11,
 } as const;
