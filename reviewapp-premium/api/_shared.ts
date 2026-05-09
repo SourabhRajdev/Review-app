@@ -67,7 +67,8 @@ export async function callGemini(
       generationConfig: {
         maxOutputTokens: 400,
         temperature: 0.85,
-        topP: 0.95
+        topP: 0.95,
+        thinkingConfig: { thinkingBudget: 0 }
       }
     })
   });
