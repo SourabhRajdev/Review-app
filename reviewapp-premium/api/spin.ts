@@ -1,6 +1,6 @@
 import { randomInt } from 'crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { CORS_HEADERS } from './_shared';
+import { CORS_HEADERS } from './_shared.js';
 
 const PRIZES = [
   { label: 'Free Coffee',   emoji: '☕', tier: 'jackpot' },

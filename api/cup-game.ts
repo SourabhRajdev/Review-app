@@ -1,6 +1,6 @@
 import { randomInt } from 'crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { CORS_HEADERS } from './_shared';
+import { CORS_HEADERS } from './_shared.js';
 
 // Win probability per performance tier (inverted — losing players get more luck)
 const WIN_THRESHOLD: Record<string, number> = {

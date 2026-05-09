@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGuide, getApiKey, callGemini, sanitizeReview, CORS_HEADERS } from './_shared';
+import { getGuide, getApiKey, getModel, callGemini, sanitizeReview, CORS_HEADERS } from './_shared.js';
 
 const SYSTEM_PROMPT = `You are the Review Generation Engine for a gamified customer review capture system
 built for restaurants and cafes.
@@ -121,10 +121,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.status(200).json({
       review: localFallback(req.body || {}),
       model: 'local-fallback',
-      warning: 'AI call failed'
-    });
-  }
-}
       warning: 'AI call failed'
     });
   }

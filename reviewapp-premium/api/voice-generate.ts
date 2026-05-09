@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getApiKey, getModel, sanitizeReview } from './_shared';
+import { getApiKey, getModel, sanitizeReview } from './_shared.js';
 
 const SYSTEM_PROMPT = `You are a review generation engine. The customer will give you a raw voice transcript of their experience at a restaurant or café.
 

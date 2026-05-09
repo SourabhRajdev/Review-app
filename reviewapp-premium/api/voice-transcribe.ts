@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const uploadRes = await fetch(`${BASE}/v2/upload`, {
       method: 'POST',
       headers: { ...authHeaders, 'Content-Type': 'application/octet-stream' },
-      body: audioBuffer,
+      body: new Uint8Array(audioBuffer), // Convert Buffer to Uint8Array for fetch BodyInit
     });
     if (!uploadRes.ok) {
       const text = await uploadRes.text();

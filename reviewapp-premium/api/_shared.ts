@@ -62,7 +62,6 @@ export async function callGemini(
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
     model
   )}:generateContent?key=${apiKey}`;
-...
 
   const systemParts: { text: string }[] = [{ text: systemPrompt }];
   if (guideText) {
