@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Lottie, { LottieRefCurrentProps } from 'lottie-react';
+import windAnimation from '@/assets/wind.json';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useGameStore } from '@/architecture/game/store';
@@ -33,14 +35,8 @@ const JAR_POSITIONS = [
 const HIT_RADIUS = 8; // Percentage units for collision detection
 
 // ══════════════════════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════════════════
 // 🌬️  WIND SYSTEM
 // ══════════════════════════════════════════════════════════════════════════════
-
-const WIND_KEYFRAMES = `
-  @keyframes windLeft { from { transform: translateX(120%); } to { transform: translateX(-120%); } }
-  @keyframes windRight { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
-`;
 
 interface Wind {
   force: number;      // -1 to 1 (negative = left, positive = right)
@@ -48,35 +44,58 @@ interface Wind {
   strength: 'calm' | 'light' | 'medium' | 'strong';
 }
 
-function WindVisual({ wind }: { wind: Wind }) {
-  if (wind.strength === 'calm') return null;
+interface WindOverlayProps {
+  wind: Wind;
+  visible: boolean;
+}
 
-  const streakCount = { light: 2, medium: 4, strong: 6 }[wind.strength] || 0;
-  const duration = { light: 2.2, medium: 1.4, strong: 0.8 }[wind.strength] || 1;
-  const opacity = { light: 0.18, medium: 0.25, strong: 0.35 }[wind.strength] || 0.2;
-  const animationName = wind.force < 0 ? 'windLeft' : 'windRight';
+function WindOverlay({ wind, visible }: WindOverlayProps) {
+  const lottieRef = useRef<LottieRefCurrentProps>(null);
+
+  if (!visible || wind.direction === 'calm') return null;
+
+  // Speed of animation inversely proportional to strength
+  const speedMap = {
+    calm: 1,
+    light: 0.6,
+    medium: 1.0,
+    strong: 1.6,
+  };
+
+  // Opacity scales with strength
+  const opacityMap = {
+    calm: 0,
+    light: 0.35,
+    medium: 0.55,
+    strong: 0.8,
+  };
+
+  const speed = speedMap[wind.strength];
+  const opacity = opacityMap[wind.strength];
+
+  // Set speed when it changes
+  useEffect(() => {
+    lottieRef.current?.setSpeed(speed);
+  }, [speed]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden z-[5]">
-      {Array.from({ length: streakCount }).map((_, i) => {
-        const width = 24 + Math.random() * 48; // 24px to 72px
-        const top = 15 + (i * (65 / streakCount)) + Math.random() * 5; // distributed 15-80%
-        const delay = Math.random() * (duration * 0.8);
-
-        return (
-          <div
-            key={`wind-streak-${i}`}
-            className="absolute h-[1.5px] rounded-full"
-            style={{
-              width: `${width}px`,
-              top: `${top}%`,
-              backgroundColor: 'var(--color-ink-tertiary)',
-              opacity,
-              animation: `${animationName} ${duration}s linear ${delay}s infinite`,
-            }}
-          />
-        );
-      })}
+    <div
+      className="absolute inset-0 pointer-events-none overflow-hidden"
+      style={{
+        opacity,
+        // Flip horizontally if wind is blowing left
+        transform: wind.direction === 'left' ? 'scaleX(-1)' : 'scaleX(1)',
+        zIndex: 1,
+      }}
+    >
+      <Lottie
+        lottieRef={lottieRef}
+        animationData={windAnimation}
+        loop={true}
+        autoplay={true}
+        style={{ width: '100%', height: '100%' }}
+        rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
+      />
     </div>
   );
 }
@@ -594,7 +613,6 @@ export default function SlingshotGameScreen() {
   if (phase === 'complete') {
     return (
       <ScreenShell hideProgress hideBack>
-        <style>{WIND_KEYFRAMES}</style>
         <motion.div
           className="flex-1 flex flex-col justify-center items-center text-center"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -626,7 +644,6 @@ export default function SlingshotGameScreen() {
     
     return (
       <ScreenShell hideProgress hideBack>
-        <style>{WIND_KEYFRAMES}</style>
         <motion.div
           className="flex-1 flex flex-col justify-center items-center text-center px-4"
           initial={{ opacity: 0 }}
@@ -670,19 +687,15 @@ export default function SlingshotGameScreen() {
   // 🎨  RENDER - PLAYING PHASE
   // ══════════════════════════════════════════════════════════════════════════════
 
-  const powerPercent = Math.round(pullY * 100);
   const isPowerSufficient = pullY >= PHYSICS.MIN_POWER;
   
   const turnLabel = pickedAnswer ? 'Moving to next round...' :
     hitAnswerIdx !== null ? 'Tap to confirm!' :
-    isDragging ? (isPowerSufficient ? `Power: ${powerPercent}% 🎯` : `Pull more! ${powerPercent}%`) :
+    isDragging ? (isPowerSufficient ? `Aiming... 🎯` : `Pull more!`) :
     'Pull the slingshot to aim';
-
-  const windEmoji = wind.strength === 'light' ? '🌬' : wind.strength === 'medium' ? '💨' : '🌪';
 
   return (
     <ScreenShell hideProgress hideBack>
-      <style>{WIND_KEYFRAMES}</style>
       <motion.div
         className="flex-1 flex flex-col"
         initial={{ opacity: 0 }}
@@ -706,47 +719,6 @@ export default function SlingshotGameScreen() {
 
           <h3 className="text-heading text-ink mb-2">{currentRound.question}</h3>
           <p className="text-ink-secondary text-label">{turnLabel}</p>
-        </motion.div>
-
-        {/* ── Wind Indicator ── */}
-        <motion.div
-          className="flex items-center justify-center gap-2 mb-2"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={spring.gentle}
-        >
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-micro font-semibold"
-            style={{
-              background: wind.strength === 'strong' ? 'rgba(239,68,68,0.1)' : 
-                         wind.strength === 'medium' ? 'rgba(251,146,60,0.1)' :
-                         wind.strength === 'light' ? 'rgba(59,130,246,0.1)' :
-                         'rgba(156,163,175,0.1)',
-              color: wind.strength === 'strong' ? '#DC2626' :
-                     wind.strength === 'medium' ? '#EA580C' :
-                     wind.strength === 'light' ? '#2563EB' :
-                     '#6B7280',
-              border: `1px solid ${
-                wind.strength === 'strong' ? 'rgba(239,68,68,0.2)' :
-                wind.strength === 'medium' ? 'rgba(251,146,60,0.2)' :
-                wind.strength === 'light' ? 'rgba(59,130,246,0.2)' :
-                'rgba(156,163,175,0.2)'
-              }`,
-            }}
-          >
-            <motion.span
-              animate={wind.direction === 'left' ? { x: [-2, 0, -2] } : wind.direction === 'right' ? { x: [2, 0, 2] } : {}}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-            >
-              {wind.direction === 'left' ? '←' : wind.direction === 'right' ? '→' : '•'}
-            </motion.span>
-            <span>
-              Wind: {wind.strength === 'calm' ? 'Calm' : 
-                     wind.strength === 'light' ? 'Light' :
-                     wind.strength === 'medium' ? 'Medium' :
-                     'Strong'}
-            </span>
-          </div>
         </motion.div>
 
         {/* ── Power Warning ── */}
@@ -791,33 +763,33 @@ export default function SlingshotGameScreen() {
             }
           }}
         >
+          <WindOverlay
+            wind={wind}
+            visible={phase === 'aiming' || phase === 'flying'}
+          />
+
+          {/* Wind strength badge */}
+          {wind.direction !== 'calm' && (phase === 'aiming' || phase === 'flying') && (
+            <div
+              className="absolute top-3 right-3 z-10 pointer-events-none"
+            >
+              <motion.div
+                key={wind.strength}
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-xs px-2 py-1 rounded-full bg-black/10 text-ink-secondary"
+              >
+                {wind.strength === 'light' && '🌬 Light wind'}
+                {wind.strength === 'medium' && '💨 Medium wind'}
+                {wind.strength === 'strong' && '🌪 Strong wind'}
+              </motion.div>
+            </div>
+          )}
+
           {/* Shelf line — warm tan */}
           <div className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
-
-          {/* Wind Visual streaks */}
-          {(phase === 'aiming' || phase === 'flying') && <WindVisual wind={wind} />}
-
-          {/* Wind Badge Indicator */}
-          <AnimatePresence>
-            {wind.strength !== 'calm' && (phase === 'aiming' || phase === 'flying') && (
-              <motion.div
-                key={`wind-badge-${wind.strength}`}
-                className="absolute top-3 right-3 px-2 py-1 rounded-full text-micro font-semibold flex items-center gap-1 z-10"
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.8)',
-                  color: 'var(--color-ink-secondary)',
-                  border: '1px solid var(--color-ink-ghost)',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                }}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 10 }}
-              >
-                <span>{windEmoji}</span>
-                <span className="capitalize">{wind.strength}</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* 4 Answer jars with labels - WITH REAL-TIME PREDICTION HIGHLIGHTING */}
           {currentRound.answers.map((answer, idx) => {
