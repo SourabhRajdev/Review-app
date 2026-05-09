@@ -51,6 +51,7 @@ const BALL_RADIUS = 26;
 const GRAVITY = 0.25;
 const MAX_ATTEMPTS = 3;
 const AIM_ASSIST = 0.45;
+const MIN_HOOP_WIDTH = BALL_RADIUS * 2 + 8; // 60px — always passable
 
 const SCORING = {
   ATTEMPT_1: 25,
@@ -101,7 +102,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: (attempt: number) =
 
     // Scale hoop based on attempts
     if (attemptsRef.current === 1) hoopScale.set(0.8);
-    if (attemptsRef.current === 2) hoopScale.set(0.62);
+    if (attemptsRef.current === 2) hoopScale.set(0.76);
   }, [hoopScale]);
 
   useEffect(() => {
@@ -117,7 +118,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: (attempt: number) =
 
       // Get current hoop dimensions from spring
       const currentScale = hoopScaleSpring.get();
-      const currentHoopWidth = BASE_HOOP_WIDTH * currentScale;
+      const currentHoopWidth = Math.max(BASE_HOOP_WIDTH * currentScale, MIN_HOOP_WIDTH);
       const leftRimX = HOOP_X - currentHoopWidth / 2;
       const rightRimX = HOOP_X + currentHoopWidth / 2;
 

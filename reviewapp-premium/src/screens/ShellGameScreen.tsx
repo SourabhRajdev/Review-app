@@ -201,7 +201,7 @@ export default function ShellGameScreen() {
   const [gameResult, setGameResult]     = useState<{ result: 'win' | 'lose'; ballAt: number } | null>(null);
 
   // ── Physics drop state ──
-  const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, visible: false });
+  const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, vy: 0, visible: false });
   const ballPhysRef = useRef({ x: 0, y: 0, vy: 0, frame: 0, active: false });
   const cupPhysY = useMotionValue(300); // Start below the arena
   const cupPhysSpring = useSpring(cupPhysY, { stiffness: 400, damping: 30 });
@@ -376,14 +376,14 @@ export default function ShellGameScreen() {
     setPhase('ball_drop');
 
     // ── Start physics drop sequence ──
-    const startY = 80;
-    const targetY = window.innerHeight * 0.82;
+    const startY = -60; // Start above viewport
+    const targetY = window.innerHeight * 0.72;
     const dropDist = targetY - startY;
-    const interceptTrigger = startY + dropDist * 0.7;
+    const interceptTrigger = startY + dropDist * 0.65;
     
     ballPhysRef.current = { x: 0, y: startY, vy: 0, frame: 0, active: true };
-    setBallPhys({ x: 0, y: startY, visible: true });
-    cupPhysY.set(400); // Start way down
+    setBallPhys({ x: 0, y: startY, vy: 0, visible: true });
+    cupPhysY.set(window.innerHeight + 80); // Fully off screen bottom
 
     const runLoop = () => {
       if (!ballPhysRef.current.active) return;
@@ -391,33 +391,49 @@ export default function ShellGameScreen() {
       const p = ballPhysRef.current;
       p.frame++;
       
-      // STEP 2: Ball physics drop
-      const GRAVITY = 0.6;
-      const MAX_VY = 28;
+      // Physics constants
+      const GRAVITY = 0.38;
+      const MAX_VY = 18;
+      const WIND_AMPLITUDE = 3.2;
+      const WIND_FREQ = 0.045;
+
       p.vy = Math.min(p.vy + GRAVITY, MAX_VY);
       p.y += p.vy;
       
-      // Horizontal wobble
-      p.x = Math.sin(p.frame * 0.3) * 0.4;
+      // Horizontal drift (wind)
+      p.x = Math.sin(p.frame * WIND_FREQ) * WIND_AMPLITUDE;
       
-      setBallPhys({ x: p.x, y: p.y, visible: true });
+      setBallPhys({ x: p.x, y: p.y, vy: p.vy, visible: true });
       
-      // STEP 3: Cup intercept
-      if (p.y >= interceptTrigger) {
-        cupPhysY.set(p.y); // Meet the ball
+      // STEP 3: Cup intercept (ANTICIPATION)
+      if (p.y >= interceptTrigger && cupPhysY.get() > window.innerHeight) {
+        // Calculate where ball will be in 28 frames
+        let simVy = p.vy;
+        let simY = p.y;
+        for (let i = 0; i < 28; i++) {
+          simVy = Math.min(simVy + GRAVITY, MAX_VY);
+          simY += simVy;
+        }
+        cupPhysY.set(simY - 20); // Predicted point
       }
       
       // STEP 4: Cup captures ball
-      const threshold = 8;
-      if (p.y >= targetY - threshold || (p.y >= cupPhysSpring.get() - threshold && p.y > interceptTrigger)) {
+      const threshold = 14;
+      if (Math.abs(p.y - cupPhysSpring.get()) < threshold && p.y > interceptTrigger) {
         p.active = false;
         setBallPhys(prev => ({ ...prev, visible: false }));
         haptics.press();
-        // Seamless transition to cup_show/shuffle
-        setTimeout(() => {
+        
+        // Wait 120ms for spring to settle then slide to final position
+        setTimeout(async () => {
+          const finalCupY = 0; // Final position in standard layout
+          await animate(cupPhysY, finalCupY, { 
+            type: 'spring', 
+            stiffness: 280, 
+            damping: 28 
+          });
           setPhase('cup_show');
-          cupPhysY.set(0); // Reset for standard cup layout
-        }, 50);
+        }, 120);
         return;
       }
       
@@ -466,6 +482,12 @@ export default function ShellGameScreen() {
 
   return (
     <ScreenShell hideProgress hideBack>
+      <style>{`
+        @keyframes windLine {
+          from { transform: translateX(100vw); }
+          to { transform: translateX(-100px); }
+        }
+      `}</style>
       <div className="flex-1 flex flex-col">
 
         {/* ─── Phase 1: Question card ─────────────────────────────────── */}
@@ -552,17 +574,59 @@ export default function ShellGameScreen() {
               initial={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              {/* Ball falling with physics */}
+              {/* Atmospheric Wind Lines */}
+              <div 
+                className="absolute left-0 w-12 h-[1.5px] bg-ink/10"
+                style={{ 
+                  top: '30%', 
+                  animation: 'windLine 0.9s linear infinite',
+                  opacity: 0.12 
+                }} 
+              />
+              <div 
+                className="absolute left-0 w-14 h-[1.5px] bg-white/20"
+                style={{ 
+                  top: '55%', 
+                  animation: 'windLine 1.3s linear infinite',
+                  animationDelay: '0.4s',
+                  opacity: 0.12 
+                }} 
+              />
+
+              {/* Ball falling with physics and Ghost Trail */}
               {ballPhys.visible && (
-                <motion.div
-                  className="absolute left-1/2"
-                  style={{ 
-                    x: `calc(-50% + ${ballPhys.x}px)`, 
-                    top: ballPhys.y 
-                  }}
-                >
-                  <BallSVG size={52} colors={answerColors} />
-                </motion.div>
+                <>
+                  {/* 4 Motion-blur ghosts */}
+                  {[0.18, 0.12, 0.08, 0.04].map((op, i) => {
+                    const ghostIdx = i + 1;
+                    const ghostY = ballPhys.y - (ghostIdx * ballPhys.vy * 1.2);
+                    return (
+                      <div
+                        key={`ghost-${i}`}
+                        className="absolute left-1/2 pointer-events-none"
+                        style={{ 
+                          left: `calc(50% + ${ballPhys.x}px)`, 
+                          top: ghostY,
+                          opacity: op,
+                          transform: 'translateX(-50%)'
+                        }}
+                      >
+                        <BallSVG size={52} colors={answerColors} />
+                      </div>
+                    );
+                  })}
+
+                  {/* Primary Ball */}
+                  <motion.div
+                    className="absolute left-1/2"
+                    style={{ 
+                      x: `calc(-50% + ${ballPhys.x}px)`, 
+                      top: ballPhys.y 
+                    }}
+                  >
+                    <BallSVG size={52} colors={answerColors} />
+                  </motion.div>
+                </>
               )}
 
               {/* Rising cup to catch ball */}
