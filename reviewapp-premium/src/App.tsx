@@ -16,6 +16,7 @@ import ShellGameScreen from './screens/ShellGameScreen';
 import SpinWheelScreen from './screens/SpinWheelScreen';
 import GeneratingScreen from './screens/GeneratingScreen';
 import ReviewScreen from './screens/ReviewScreen';
+import TranscriptReviewScreen from './screens/TranscriptReviewScreen';
 
 export default function App() {
   const current = useNavigation((s) => s.current);
@@ -25,6 +26,8 @@ export default function App() {
       <AnimatePresence>
         {/* ── Easy mode flow ── */}
         {current === 'entry' && <EntryScreen key="entry" />}
+        {current === 'voiceEntry' && <EntryScreen key="voiceEntry" />}
+        {current === 'transcriptReview' && <TranscriptReviewScreen key="transcriptReview" />}
         {current === 'aboutYou' && <AboutYouScreen key="aboutYou" />}
         {current === 'orderSelection' && <OrderSelectionScreen key="orderSelection" />}
         {current === 'productGame' && <ProductGameScreen key="productGame" />}
