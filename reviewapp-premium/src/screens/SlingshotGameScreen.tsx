@@ -75,7 +75,9 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
 
   // Set speed when it changes
   useEffect(() => {
-    lottieRef.current?.setSpeed(speed);
+    if (lottieRef.current) {
+      lottieRef.current.setSpeed(speed);
+    }
   }, [speed]);
 
   return (
@@ -94,7 +96,6 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
         loop={true}
         autoplay={true}
         style={{ width: '100%', height: '100%' }}
-        rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
       />
     </div>
   );
@@ -747,7 +748,7 @@ export default function SlingshotGameScreen() {
             background: 'rgba(251,247,244,0.95)',
             backgroundImage: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(198,124,78,0.04) 0%, transparent 60%)',
             border: '1px solid rgba(200,170,140,0.2)',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
+            boxShadow: '0px 4px 20px rgba(0,0,0,0.06)',
           }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -769,24 +770,26 @@ export default function SlingshotGameScreen() {
           />
 
           {/* Wind strength badge */}
-          {wind.direction !== 'calm' && (phase === 'aiming' || phase === 'flying') && (
-            <div
-              className="absolute top-3 right-3 z-10 pointer-events-none"
-            >
-              <motion.div
-                key={wind.strength}
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="text-xs px-2 py-1 rounded-full bg-black/10 text-ink-secondary"
+          <AnimatePresence>
+            {wind.direction !== 'calm' && (phase === 'aiming' || phase === 'flying') && (
+              <div
+                className="absolute top-3 right-3 z-10 pointer-events-none"
               >
-                {wind.strength === 'light' && '🌬 Light wind'}
-                {wind.strength === 'medium' && '💨 Medium wind'}
-                {wind.strength === 'strong' && '🌪 Strong wind'}
-              </motion.div>
-            </div>
-          )}
+                <motion.div
+                  key={wind.strength}
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="text-xs px-2 py-1 rounded-full bg-black/10 text-ink-secondary"
+                >
+                  {wind.strength === 'light' && '🌬 Light wind'}
+                  {wind.strength === 'medium' && '💨 Medium wind'}
+                  {wind.strength === 'strong' && '🌪 Strong wind'}
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
 
           {/* Shelf line — warm tan */}
           <div className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
@@ -810,7 +813,9 @@ export default function SlingshotGameScreen() {
                       className="flex flex-col items-center gap-2"
                       animate={{
                         scale: isPredicted ? 1.15 : 1,
-                        filter: isPredicted ? 'drop-shadow(0 0 12px rgba(198,124,78,0.4))' : 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
+                        filter: isPredicted 
+                          ? 'drop-shadow(0px 0px 12px rgba(198,124,78,0.4))' 
+                          : 'drop-shadow(0px 4px 8px rgba(0,0,0,0.10))',
                       }}
                       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                       exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], transition: { duration: 0.4 } }}
@@ -825,7 +830,7 @@ export default function SlingshotGameScreen() {
                           background: isPredicted ? '#FFF8F3' : 'rgba(255,255,255,0.9)',
                           color: isPredicted ? '#C67C4E' : '#7A5C4A',
                           border: isPredicted ? '1.5px solid #C67C4E' : '1px solid rgba(200,170,140,0.2)',
-                          boxShadow: isPredicted ? '0 4px 12px rgba(198,124,78,0.2)' : '0 2px 4px rgba(0,0,0,0.08)',
+                          boxShadow: isPredicted ? '0px 4px 12px rgba(198,124,78,0.2)' : '0px 2px 4px rgba(0,0,0,0.08)',
                         }}
                       >
                         {answer}
@@ -965,12 +970,12 @@ export default function SlingshotGameScreen() {
                     background: 'linear-gradient(135deg, #E8B896, #C67C4E)',
                     color: '#FFFFFF',
                     border: '1px solid rgba(198,124,78,0.4)',
-                    boxShadow: '0 4px 12px rgba(198,124,78,0.3)',
+                    boxShadow: '0px 4px 12px rgba(198,124,78,0.3)',
                   } : {
                     background: '#FFFFFF',
                     color: '#C67C4E',
                     border: '1px solid rgba(198,124,78,0.3)',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                    boxShadow: '0px 2px 8px rgba(0,0,0,0.08)',
                   }}
                   animate={hitAnswerIdx !== null && !pickedAnswer ? { y: [0, -3, 0] } : {}}
                   transition={{ repeat: Infinity, duration: 1.5, delay: item.delay }}
