@@ -17,7 +17,8 @@ function nearMissSlot(userPick: number): number {
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') {
-    return res.status(200).set(CORS_HEADERS).end();
+    Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
+    return res.status(200).end();
   }
   Object.entries(CORS_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
 
