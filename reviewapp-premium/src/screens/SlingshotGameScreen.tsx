@@ -1,7 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Lottie, { LottieRefCurrentProps } from 'lottie-react';
-import windAnimation from '@/assets/wind.json';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
 import { useGameStore } from '@/architecture/game/store';
@@ -35,7 +33,7 @@ const JAR_POSITIONS = [
 const HIT_RADIUS = 8; // Percentage units for collision detection
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 🌬️  WIND SYSTEM
+// 🌬️  PHYSICAL WIND SYSTEM (HIGH-VISIBILITY ORGANIC CURRENTS)
 // ══════════════════════════════════════════════════════════════════════════════
 
 interface Wind {
@@ -44,62 +42,89 @@ interface Wind {
   strength: 'calm' | 'light' | 'medium' | 'strong';
 }
 
-interface WindOverlayProps {
-  wind: Wind;
-  visible: boolean;
-}
+function PhysicalWind({ wind, visible }: { wind: Wind; visible: boolean }) {
+  const gustCount = { calm: 0, light: 8, medium: 14, strong: 22 }[wind.strength];
+  
+  // Memoize gusts to avoid chaotic re-renders
+  const gusts = useMemo(() => {
+    return Array.from({ length: 22 }).map((_, i) => ({
+      id: i,
+      y: 15 + Math.random() * 65, // Spread across the 15%-80% valley
+      width: 40 + Math.random() * 120,
+      thickness: 1.5 + Math.random() * 2.5,
+      delay: Math.random() * 2,
+      duration: 1.5 + Math.random() * 1.5,
+      curve: (Math.random() - 0.5) * 40, // Organic sway
+    }));
+  }, []);
 
-function WindOverlay({ wind, visible }: WindOverlayProps) {
-  const lottieRef = useRef<LottieRefCurrentProps>(null);
+  if (!visible || wind.strength === 'calm') return null;
 
-  // Speed of animation inversely proportional to strength
-  const speedMap = {
-    calm: 1,
-    light: 0.6,
-    medium: 1.0,
-    strong: 1.6,
-  };
-
-  // Opacity scales with strength
-  const opacityMap = {
-    calm: 0,
-    light: 0.35,
-    medium: 0.55,
-    strong: 0.8,
-  };
-
-  const speed = speedMap[wind.strength];
-  const opacity = opacityMap[wind.strength];
-
-  // Set speed when it changes
-  useEffect(() => {
-    if (lottieRef.current) {
-      lottieRef.current.setSpeed(speed);
-    }
-  }, [speed]);
-
-  if (!visible || wind.direction === 'calm') return null;
+  // Speed multiplier based on strength
+  const speedMult = { calm: 1, light: 1.4, medium: 0.9, strong: 0.5 }[wind.strength]; // duration is inverted
 
   return (
-    <div
-      className="absolute left-0 right-0 pointer-events-none overflow-hidden"
-      style={{
-        top: '15%',
-        bottom: '15%',
-        opacity,
-        // Flip horizontally if wind is blowing left
-        transform: wind.direction === 'left' ? 'scaleX(-1)' : 'scaleX(1)',
-        zIndex: 5,
-      }}
+    <div 
+      className="absolute inset-0 pointer-events-none overflow-hidden" 
+      style={{ zIndex: 5, opacity: 0.7 }}
     >
-      <Lottie
-        lottieRef={lottieRef}
-        animationData={windAnimation}
-        loop={true}
-        autoplay={true}
-        style={{ width: '100%', height: '100%' }}
-        rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
-      />
+      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <AnimatePresence>
+          {gusts.slice(0, gustCount).map((g) => {
+            const isLeft = wind.direction === 'left';
+            const startX = isLeft ? 120 : -20;
+            const endX = isLeft ? -20 : 120;
+
+            return (
+              <motion.path
+                key={`gust-${g.id}`}
+                d={`M ${startX} ${g.y} Q ${startX + (endX - startX) / 2} ${g.y + g.curve} ${endX} ${g.y}`}
+                fill="none"
+                stroke="rgba(198, 124, 78, 0.25)"
+                strokeWidth={g.thickness}
+                strokeLinecap="round"
+                initial={{ pathLength: 0, opacity: 0, x: 0 }}
+                animate={{ 
+                  pathLength: [0, 1, 0],
+                  opacity: [0, 0.8, 0],
+                  x: isLeft ? [-10, 10] : [10, -10] 
+                }}
+                transition={{
+                  duration: g.duration * speedMult,
+                  repeat: Infinity,
+                  delay: g.delay,
+                  ease: "linear"
+                }}
+                style={{ filter: 'blur(1px)' }}
+              />
+            );
+          })}
+        </AnimatePresence>
+      </svg>
+      
+      {/* Texture Layer: Drifting "Dust/Seed" particles */}
+      <div className="absolute inset-0">
+        {Array.from({ length: gustCount / 2 }).map((_, i) => (
+          <motion.div
+            key={`dust-${i}`}
+            className="absolute w-1 h-1 rounded-full bg-primary/20"
+            initial={{ 
+              x: wind.direction === 'left' ? '110%' : '-10%',
+              y: `${20 + Math.random() * 60}%` 
+            }}
+            animate={{ 
+              x: wind.direction === 'left' ? '-10%' : '110%',
+              y: [`${20 + Math.random() * 60}%`, `${25 + Math.random() * 55}%`]
+            }}
+            transition={{
+              duration: (2 + Math.random() * 2) * speedMult,
+              repeat: Infinity,
+              delay: Math.random() * 2,
+              ease: "linear"
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -767,7 +792,7 @@ export default function SlingshotGameScreen() {
             }
           }}
         >
-          <WindOverlay
+          <PhysicalWind
             wind={wind}
             visible={phase === 'aiming' || phase === 'flying'}
           />
