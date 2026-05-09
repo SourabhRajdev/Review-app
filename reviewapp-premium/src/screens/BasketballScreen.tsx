@@ -385,6 +385,7 @@ function BasketballGame({ onScore, onMissedAll }: { onScore: (attempt: number) =
   };
 
   const onDown = (e: React.TouchEvent | React.MouseEvent) => {
+    try { audio.resume(); } catch {}
     if (scoredRef.current || launched.current) return;
     const pos = getPos(e);
     const dist = Math.sqrt((pos.x - bx.current) ** 2 + (pos.y - by.current) ** 2);

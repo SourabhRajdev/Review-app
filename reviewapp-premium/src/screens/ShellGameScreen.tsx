@@ -376,14 +376,14 @@ export default function ShellGameScreen() {
     setPhase('ball_drop');
 
     // ── Start physics drop sequence ──
-    const startY = -60; // Start above viewport
+    const startY = -60; 
     const targetY = window.innerHeight * 0.72;
     const dropDist = targetY - startY;
     const interceptTrigger = startY + dropDist * 0.65;
     
     ballPhysRef.current = { x: 0, y: startY, vy: 0, frame: 0, active: true };
     setBallPhys({ x: 0, y: startY, vy: 0, visible: true });
-    cupPhysY.set(window.innerHeight + 80); // Fully off screen bottom
+    cupPhysY.set(window.innerHeight + 80); 
 
     const runLoop = () => {
       if (!ballPhysRef.current.active) return;
@@ -391,7 +391,15 @@ export default function ShellGameScreen() {
       const p = ballPhysRef.current;
       p.frame++;
       
-      // Physics constants
+      // Safety escape
+      if (p.frame > 300) {
+        p.active = false;
+        setBallPhys(prev => ({ ...prev, visible: false }));
+        setPhase('cup_show');
+        return;
+      }
+      
+      // Physics
       const GRAVITY = 0.38;
       const MAX_VY = 18;
       const WIND_AMPLITUDE = 3.2;
@@ -399,39 +407,34 @@ export default function ShellGameScreen() {
 
       p.vy = Math.min(p.vy + GRAVITY, MAX_VY);
       p.y += p.vy;
-      
-      // Horizontal drift (wind)
       p.x = Math.sin(p.frame * WIND_FREQ) * WIND_AMPLITUDE;
       
       setBallPhys({ x: p.x, y: p.y, vy: p.vy, visible: true });
       
-      // STEP 3: Cup intercept (ANTICIPATION)
+      // Anticipation
       if (p.y >= interceptTrigger && cupPhysY.get() > window.innerHeight) {
-        // Calculate where ball will be in 28 frames
         let simVy = p.vy;
         let simY = p.y;
         for (let i = 0; i < 28; i++) {
           simVy = Math.min(simVy + GRAVITY, MAX_VY);
           simY += simVy;
         }
-        cupPhysY.set(simY - 20); // Predicted point
+        cupPhysY.set(simY - 20);
       }
       
-      // STEP 4: Cup captures ball
-      const threshold = 14;
-      if (Math.abs(p.y - cupPhysSpring.get()) < threshold && p.y > interceptTrigger) {
+      // Capture
+      const springCaughtUp = Math.abs(p.y - cupPhysSpring.get()) < 18 && p.y > interceptTrigger;
+      const ballPassedTarget = p.y >= targetY;
+
+      if (springCaughtUp || ballPassedTarget) {
         p.active = false;
         setBallPhys(prev => ({ ...prev, visible: false }));
         haptics.press();
         
-        // Wait 120ms for spring to settle then slide to final position
         setTimeout(async () => {
-          const finalCupY = 0; // Final position in standard layout
-          await animate(cupPhysY, finalCupY, { 
-            type: 'spring', 
-            stiffness: 280, 
-            damping: 28 
-          });
+          try {
+            await animate(cupPhysY, 0, { type: 'spring', stiffness: 280, damping: 28 });
+          } catch {}
           setPhase('cup_show');
         }, 120);
         return;

@@ -58,26 +58,6 @@ function tone(
   osc.stop(c.currentTime + duration + 0.05);
 }
 
-function noiseBurst(duration: number, peakGain = 0.12, lowpass = 1200) {
-  const c = ensureCtx();
-  if (!c) return;
-  const buffer = c.createBuffer(1, c.sampleRate * duration, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  const src = c.createBufferSource();
-  src.buffer = buffer;
-  const filter = c.createBiquadFilter();
-  filter.type = 'lowpass';
-  filter.frequency.value = lowpass;
-  const gain = c.createGain();
-  src.connect(filter);
-  filter.connect(gain);
-  gain.connect(c.destination);
-  envelope(gain.gain, 0, peakGain, 0.005, duration, c);
-  src.start();
-  src.stop(c.currentTime + duration + 0.05);
-}
-
 function sweep(
   startFreq: number,
   endFreq: number,
@@ -102,6 +82,13 @@ export const audio = {
   /** Call once on first user gesture to unlock the AudioContext. */
   warmup() {
     ensureCtx();
+  },
+  /** Resume audio context on user gesture. */
+  resume() {
+    try {
+      const c = ensureCtx();
+      if (c?.state === 'suspended') c.resume();
+    } catch {}
   },
   /** A small UI confirmation tick. */
   tick() {
@@ -160,22 +147,42 @@ export const audio = {
   /** Synthesized crowd cheer (Woah!) — rising pitch + noise burst. */
   cheer() {
     try {
-      const c = ensureCtx();
-      if (!c) return;
       // Rising pitch burst
-      sweep(400, 900, 0.4, 0.15);
+      sweep(400, 900, 0.85, 0.18);
       // Clapping-like noise envelope
-      setTimeout(() => noiseBurst(0.6, 0.1, 1500), 100);
-      setTimeout(() => noiseBurst(0.4, 0.08, 1200), 300);
+      setTimeout(() => noiseBurst(0.12, 0.7, 1500), 100);
+      setTimeout(() => noiseBurst(0.10, 0.4, 1200), 300);
     } catch { /* fail silently */ }
   },
   /** Synthesized crowd boo — low descending groan. */
   boo() {
     try {
-      const c = ensureCtx();
-      if (!c) return;
-      sweep(180, 120, 0.5, 0.2);
-      noiseBurst(0.5, 0.05, 500);
+      sweep(200, 100, 0.9, 0.25);
+      noiseBurst(0.08, 0.5, 500);
     } catch { /* fail silently */ }
   }
 };
+
+function noiseBurst(gain: number, duration: number, freq: number) {
+  try {
+    const c = ensureCtx();
+    if (!c) return;
+    const bufferSize = c.sampleRate * duration;
+    const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+    const source = c.createBufferSource();
+    source.buffer = buffer;
+    const gainNode = c.createGain();
+    gainNode.gain.setValueAtTime(gain, c.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, c.currentTime + duration);
+    const filter = c.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = freq;
+    filter.Q.value = 0.8;
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(c.destination);
+    source.start();
+  } catch { /* fail silently */ }
+}
