@@ -33,13 +33,52 @@ const JAR_POSITIONS = [
 const HIT_RADIUS = 8; // Percentage units for collision detection
 
 // ══════════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════════
 // 🌬️  WIND SYSTEM
 // ══════════════════════════════════════════════════════════════════════════════
+
+const WIND_KEYFRAMES = `
+  @keyframes windLeft { from { transform: translateX(120%); } to { transform: translateX(-120%); } }
+  @keyframes windRight { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+`;
 
 interface Wind {
   force: number;      // -1 to 1 (negative = left, positive = right)
   direction: 'left' | 'right' | 'calm';
   strength: 'calm' | 'light' | 'medium' | 'strong';
+}
+
+function WindVisual({ wind }: { wind: Wind }) {
+  if (wind.strength === 'calm') return null;
+
+  const streakCount = { light: 2, medium: 4, strong: 6 }[wind.strength] || 0;
+  const duration = { light: 2.2, medium: 1.4, strong: 0.8 }[wind.strength] || 1;
+  const opacity = { light: 0.18, medium: 0.25, strong: 0.35 }[wind.strength] || 0.2;
+  const animationName = wind.force < 0 ? 'windLeft' : 'windRight';
+
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden z-[5]">
+      {Array.from({ length: streakCount }).map((_, i) => {
+        const width = 24 + Math.random() * 48; // 24px to 72px
+        const top = 15 + (i * (65 / streakCount)) + Math.random() * 5; // distributed 15-80%
+        const delay = Math.random() * (duration * 0.8);
+
+        return (
+          <div
+            key={`wind-streak-${i}`}
+            className="absolute h-[1.5px] rounded-full"
+            style={{
+              width: `${width}px`,
+              top: `${top}%`,
+              backgroundColor: 'var(--color-ink-tertiary)',
+              opacity,
+              animation: `${animationName} ${duration}s linear ${delay}s infinite`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
 }
 
 function generateWind(): Wind {
@@ -223,6 +262,7 @@ export default function SlingshotGameScreen() {
   const intendedJarRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const windTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDrawProgressRef = useRef(0);
 
   const currentRound = ROUNDS[roundIdx];
 
@@ -256,6 +296,7 @@ export default function SlingshotGameScreen() {
     setShowPowerWarning(false);
     dragStart.current = { x: e.clientX, y: e.clientY };
     lastPullYBucket.current = 0;
+    lastDrawProgressRef.current = 0;
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   }
 
@@ -269,6 +310,12 @@ export default function SlingshotGameScreen() {
 
     setPullX(newPullX);
     setPullY(newPullY);
+
+    // Audio: Elastic stretch sound with rising pitch
+    if (Math.abs(newPullY - lastDrawProgressRef.current) >= 0.05) {
+      audio.draw(newPullY);
+      lastDrawProgressRef.current = newPullY;
+    }
 
     // Real-time trajectory prediction for jar highlighting
     if (newPullY >= PHYSICS.MIN_POWER) {
@@ -297,6 +344,7 @@ export default function SlingshotGameScreen() {
     setIsDragging(false);
     dragStart.current = null;
     setPredictedJarIdx(null); // Clear highlight on release
+    lastDrawProgressRef.current = 0;
 
     // Check minimum power requirement
     if (pullY < PHYSICS.MIN_POWER) {
@@ -334,7 +382,7 @@ export default function SlingshotGameScreen() {
   function fire() {
     setFired(true);
     setPhase('flying');
-    audio.tap();
+    audio.release(); // Switched to release for better feeling
     haptics.slingshotRelease();
 
     // Calculate initial velocity
@@ -423,7 +471,7 @@ export default function SlingshotGameScreen() {
   function handleMiss() {
     setPhase('miss');
     setProjectile(null);
-    audio.tap();
+    audio.boo(); // Use boo on miss
     haptics.slingshotMiss();
     setTimeout(() => {
       setPullX(0);
@@ -443,7 +491,7 @@ export default function SlingshotGameScreen() {
     setProjectile(null);
     setShaking(true);
     haptics.jarCrack();
-    audio.bullseye();
+    audio.jarShatter(); // New jar shatter sound
 
     // Accuracy scoring
     const intended = intendedJarRef.current;
@@ -544,6 +592,7 @@ export default function SlingshotGameScreen() {
   if (phase === 'complete') {
     return (
       <ScreenShell hideProgress hideBack>
+        <style>{WIND_KEYFRAMES}</style>
         <motion.div
           className="flex-1 flex flex-col justify-center items-center text-center"
           initial={{ opacity: 0, scale: 0.9 }}
@@ -575,6 +624,7 @@ export default function SlingshotGameScreen() {
     
     return (
       <ScreenShell hideProgress hideBack>
+        <style>{WIND_KEYFRAMES}</style>
         <motion.div
           className="flex-1 flex flex-col justify-center items-center text-center px-4"
           initial={{ opacity: 0 }}
@@ -626,8 +676,11 @@ export default function SlingshotGameScreen() {
     isDragging ? (isPowerSufficient ? `Power: ${powerPercent}% 🎯` : `Pull more! ${powerPercent}%`) :
     'Pull the slingshot to aim';
 
+  const windEmoji = wind.strength === 'light' ? '🌬' : wind.strength === 'medium' ? '💨' : '🌪';
+
   return (
     <ScreenShell hideProgress hideBack>
+      <style>{WIND_KEYFRAMES}</style>
       <motion.div
         className="flex-1 flex flex-col"
         initial={{ opacity: 0 }}
@@ -732,40 +785,37 @@ export default function SlingshotGameScreen() {
               setPullY(0);
               setPredictedJarIdx(null);
               dragStart.current = null;
+              lastDrawProgressRef.current = 0;
             }
           }}
         >
           {/* Shelf line — warm tan */}
           <div className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
 
-          {/* Wind particles - visible wind effect */}
-          {wind.strength !== 'calm' && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <motion.div
-                  key={`wind-${i}`}
-                  className="absolute w-1 h-1 rounded-full"
-                  style={{
-                    background: wind.strength === 'strong' ? 'rgba(239,68,68,0.4)' :
-                               wind.strength === 'medium' ? 'rgba(251,146,60,0.3)' :
-                               'rgba(59,130,246,0.2)',
-                    top: `${20 + i * 8}%`,
-                    left: wind.direction === 'left' ? '95%' : '5%',
-                  }}
-                  animate={{
-                    x: wind.direction === 'left' ? [-200, 0] : [200, 0],
-                    opacity: [0, 0.6, 0],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    delay: i * 0.2,
-                    ease: 'linear',
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          {/* Wind Visual streaks */}
+          {(phase === 'aiming' || phase === 'flying') && <WindVisual wind={wind} />}
+
+          {/* Wind Badge Indicator */}
+          <AnimatePresence>
+            {wind.strength !== 'calm' && (phase === 'aiming' || phase === 'flying') && (
+              <motion.div
+                key={`wind-badge-${wind.strength}`}
+                className="absolute top-3 right-3 px-2 py-1 rounded-full text-micro font-semibold flex items-center gap-1 z-10"
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.8)',
+                  color: 'var(--color-ink-secondary)',
+                  border: '1px solid var(--color-ink-ghost)',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                }}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+              >
+                <span>{windEmoji}</span>
+                <span className="capitalize">{wind.strength}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* 4 Answer jars with labels - WITH REAL-TIME PREDICTION HIGHLIGHTING */}
           {currentRound.answers.map((answer, idx) => {

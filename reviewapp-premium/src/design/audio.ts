@@ -115,6 +115,21 @@ export const audio = {
     tone('sine', 130, 0.12, 0.32);
     noiseBurst(0.09, 0.16, 900);
   },
+  /** Real jar crack sound with multiple layers. */
+  jarShatter() {
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+      // Layer 1: Initial sharp crack (high-frequency noise burst)
+      noiseBurst(0.9, 0.04, 6000);
+      // Layer 2: Glass/ceramic scatter (mid noise decay)
+      setTimeout(() => noiseBurst(0.6, 0.12, 3000), 20);
+      // Layer 3: Low resonant thud (the jar body hitting ground)
+      setTimeout(() => { tone('sine', 180, 0.4, 0.18); }, 35);
+      // Layer 4: Trailing debris (quiet high noise fade)
+      setTimeout(() => noiseBurst(0.2, 0.2, 4500), 80);
+    } catch { /* fail silently */ }
+  },
   /** Bullseye bell — bright, short, satisfying. */
   bullseye() {
     tone('triangle', 1320, 0.4, 0.2);
