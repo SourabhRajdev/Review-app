@@ -85,7 +85,7 @@ function WindOverlay({ wind, visible }: WindOverlayProps) {
       className="absolute left-0 right-0 pointer-events-none overflow-hidden"
       style={{
         top: '15%',
-        bottom: '35%',
+        bottom: '15%',
         opacity,
         // Flip horizontally if wind is blowing left
         transform: wind.direction === 'left' ? 'scaleX(-1)' : 'scaleX(1)',
