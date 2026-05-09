@@ -2,17 +2,35 @@
 import fs from 'fs';
 import path from 'path';
 
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 // Cache the guide in memory across warm invocations
 let guideCache = '';
 
+const GUIDE_REL = path.join('reviewapp-premium', 'src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
+const GUIDE_REL_LOCAL = path.join('src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
+
+function resolveGuidePath(): string {
+  // Try to find the guide in multiple locations to support both root and subproject deployments
+  const candidates = [
+    path.join(process.cwd(), GUIDE_REL),               // Root deployment
+    path.join(process.cwd(), GUIDE_REL_LOCAL),         // Subproject deployment (local dev)
+    path.join(__dirname, '..', GUIDE_REL),             // Absolute relative to api/
+    path.join(__dirname, '..', GUIDE_REL_LOCAL),       // Absolute relative to api/ in subproject
+  ];
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch { /* skip */ }
+  }
+  return candidates[0]; 
+}
+
 export function getGuide(): string {
   if (guideCache) return guideCache;
   try {
-    // In Vercel serverless, the working directory is the project root
-    const guidePath = path.join(process.cwd(), 'src', 'architecture', 'REVIEW_GENERATION_GUIDE.md');
+    const guidePath = resolveGuidePath();
     guideCache = fs.readFileSync(guidePath, 'utf8');
   } catch {
     console.warn('REVIEW_GENERATION_GUIDE.md not found');
@@ -49,8 +67,7 @@ export async function callGemini(
       generationConfig: {
         maxOutputTokens: 400,
         temperature: 0.85,
-        topP: 0.95,
-        thinkingConfig: { thinkingBudget: 0 }
+        topP: 0.95
       }
     })
   });
@@ -66,6 +83,30 @@ export async function callGemini(
     .join('')
     .trim();
   return text || '';
+}
+
+export function sanitizeReview(raw: string): string {
+  if (!raw) return '';
+  let text = raw
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/\s*--\s*/g, ', ')
+    .replace(/\s*–\s*/g, ', ');
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const clean = lines.filter(l => {
+    if (/^\d+\.\s/.test(l)) return false;
+    if (/^\*\*/.test(l)) return false;
+    if (/^[-*•]\s/.test(l)) return false;
+    if (/confidence score/i.test(l)) return false;
+    if (/constraint/i.test(l)) return false;
+    if (/checklist/i.test(l)) return false;
+    if (/\bN\/A\b/.test(l)) return false;
+    if (/^(yes|no|n\/a)\b/i.test(l)) return false;
+    if (/here is/i.test(l)) return false;
+    if (/^review:/i.test(l)) return false;
+    return true;
+  });
+  const sentences = clean.filter(l => /[.!?]$/.test(l)).slice(0, 3);
+  return sentences.length >= 2 ? sentences.join('\n') : clean.slice(0, 3).join('\n');
 }
 
 export const CORS_HEADERS = {
