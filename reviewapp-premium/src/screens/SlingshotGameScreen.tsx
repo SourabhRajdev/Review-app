@@ -741,7 +741,7 @@ export default function SlingshotGameScreen() {
                     left: wind.direction === 'left' ? '95%' : '5%',
                   }}
                   animate={{
-                    x: wind.direction === 'left' ? [-200, 0] : [200, 0],
+                    x: wind.direction === 'left' ? [0, -400] : [0, 400],
                     opacity: [0, 0.6, 0],
                   }}
                   transition={{

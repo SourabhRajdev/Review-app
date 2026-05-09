@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGuide, getApiKey, callGemini, CORS_HEADERS } from './_shared';
+import { getGuide, getApiKey, callGemini, sanitizeReview, CORS_HEADERS } from './_shared';
 
 const SYSTEM_PROMPT = `You are the Review Generation Engine for a gamified customer review capture system
 built for restaurants and cafes.
