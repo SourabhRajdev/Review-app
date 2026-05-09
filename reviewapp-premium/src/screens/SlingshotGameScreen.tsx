@@ -14,13 +14,13 @@ import { haptics } from '@/design/haptics';
 // ══════════════════════════════════════════════════════════════════════════════
 
 const PHYSICS = {
-  GRAVITY: 0.0025,              // Increased gravity for faster drop
-  AIR_RESISTANCE: 0.996,        // Slightly more resistance
+  GRAVITY: 0.0038,              // SIGNIFICANTLY INCREASED: Stronger downward pull (was 0.0025)
+  AIR_RESISTANCE: 0.992,        // INCREASED FRICTION: Projectile slows faster (was 0.996)
   MIN_POWER: 0.25,              // Minimum pull to fire (25%)
-  POWER_MULTIPLIER: 4.5,        // INCREASED: Velocity = power × 4.5 (was 1.8)
+  POWER_MULTIPLIER: 4.8,        // Adjusted for new gravity/friction (was 4.5)
   TRAJECTORY_SAMPLES: 60,       // Points to calculate for trajectory preview
   WIND_CHANGE_INTERVAL: 4000,  // Wind changes every 4 seconds
-  WIND_MAX_FORCE: 0.0015,       // Increased wind effect
+  WIND_MAX_FORCE: 0.0022,       // INCREASED WIND: External factors more punishing (was 0.0015)
 } as const;
 
 const JAR_POSITIONS = [
@@ -204,6 +204,7 @@ export default function SlingshotGameScreen() {
   const [pullY, setPullY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [fired, setFired] = useState(false);
+  const [predictedJarIdx, setPredictedJarIdx] = useState<number | null>(null);
 
   // ── Wind state ──
   const [wind, setWind] = useState<Wind>(generateWind());
@@ -271,6 +272,14 @@ export default function SlingshotGameScreen() {
     setPullX(newPullX);
     setPullY(newPullY);
 
+    // Real-time trajectory prediction for jar highlighting
+    if (newPullY >= PHYSICS.MIN_POWER) {
+      const trajectory = calculateTrajectory(newPullX, newPullY, wind.force);
+      setPredictedJarIdx(checkHit(trajectory));
+    } else {
+      setPredictedJarIdx(null);
+    }
+
     // Escalating haptic feedback
     const bucket = Math.floor(newPullY / 0.08);
     if (bucket > lastPullYBucket.current) {
@@ -285,6 +294,7 @@ export default function SlingshotGameScreen() {
     if (!isDragging) return;
     setIsDragging(false);
     dragStart.current = null;
+    setPredictedJarIdx(null); // Clear highlight on release
 
     // Check minimum power requirement
     if (pullY < PHYSICS.MIN_POWER) {
@@ -466,6 +476,7 @@ export default function SlingshotGameScreen() {
   function resetForNextRound() {
     setPhase('aiming');
     setHitAnswerIdx(null);
+    setPredictedJarIdx(null);
     setSpilled([]);
     setFired(false);
     setProjectile(null);
@@ -707,6 +718,7 @@ export default function SlingshotGameScreen() {
               setIsDragging(false);
               setPullX(0);
               setPullY(0);
+              setPredictedJarIdx(null);
               dragStart.current = null;
             }
           }}
@@ -743,10 +755,11 @@ export default function SlingshotGameScreen() {
             </div>
           )}
 
-          {/* 4 Answer jars with labels - NO HIGHLIGHTING */}
+          {/* 4 Answer jars with labels - WITH REAL-TIME PREDICTION HIGHLIGHTING */}
           {currentRound.answers.map((answer, idx) => {
             const jar = JAR_POSITIONS[idx];
             const isHit = hitAnswerIdx === idx;
+            const isPredicted = predictedJarIdx === idx;
 
             return (
               <div
@@ -759,19 +772,24 @@ export default function SlingshotGameScreen() {
                     <motion.div
                       key={`jar-${idx}-intact`}
                       className="flex flex-col items-center gap-2"
+                      animate={{
+                        scale: isPredicted ? 1.15 : 1,
+                        filter: isPredicted ? 'drop-shadow(0 0 12px rgba(198,124,78,0.4))' : 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
+                      }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                       exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], transition: { duration: 0.4 } }}
                     >
-                      <span className="text-5xl drop-shadow-lg leading-none">
+                      <span className="text-5xl leading-none" style={{ filter: isPredicted ? 'none' : 'grayscale(0.1)' }}>
                         🏺
                       </span>
-                      {/* Label below jar - always same style */}
+                      {/* Label below jar */}
                       <div
-                        className="px-2 py-1 rounded-lg text-micro font-semibold text-center max-w-[80px] leading-tight"
+                        className="px-2 py-1 rounded-lg text-micro font-semibold text-center max-w-[80px] leading-tight transition-colors duration-200"
                         style={{
-                          background: 'rgba(255,255,255,0.9)',
-                          color: '#7A5C4A',
-                          border: '1px solid rgba(200,170,140,0.2)',
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                          background: isPredicted ? '#FFF8F3' : 'rgba(255,255,255,0.9)',
+                          color: isPredicted ? '#C67C4E' : '#7A5C4A',
+                          border: isPredicted ? '1.5px solid #C67C4E' : '1px solid rgba(200,170,140,0.2)',
+                          boxShadow: isPredicted ? '0 4px 12px rgba(198,124,78,0.2)' : '0 2px 4px rgba(0,0,0,0.08)',
                         }}
                       >
                         {answer}
