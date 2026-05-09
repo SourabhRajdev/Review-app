@@ -55,9 +55,24 @@ async function callGemini(transcript: string, bizName: string, hood: string): Pr
 }
 
 function sanitize(raw: string): string {
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
-  const sentences = lines.filter(l => /[.!?]$/.test(l)).slice(0, 3);
-  return (sentences.length >= 2 ? sentences : lines.slice(0, 3)).join('\n');
+  if (!raw) return '';
+  // Clean up unwanted characters/labels
+  let text = raw
+    .replace(/\s*—\s*/g, ', ')
+    .replace(/\s*--\s*/g, ', ')
+    .replace(/\s*–\s*/g, ', ')
+    .replace(/^review:/i, '')
+    .trim();
+
+  // Robust sentence splitting using regex (handles . ! ? followed by space or end of string)
+  const sentences = text
+    .split(/(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$/)
+    .map(s => s.trim())
+    .filter(s => s.length > 5);
+
+  // Return exactly 3 sentences if possible, otherwise what we have (up to 3)
+  const result = sentences.slice(0, 3);
+  return result.join('\n');
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

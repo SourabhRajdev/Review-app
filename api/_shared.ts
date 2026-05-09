@@ -91,23 +91,31 @@ export function sanitizeReview(raw: string): string {
   let text = raw
     .replace(/\s*—\s*/g, ', ')
     .replace(/\s*--\s*/g, ', ')
-    .replace(/\s*–\s*/g, ', ');
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const clean = lines.filter(l => {
-    if (/^\d+\.\s/.test(l)) return false;
-    if (/^\*\*/.test(l)) return false;
-    if (/^[-*•]\s/.test(l)) return false;
-    if (/confidence score/i.test(l)) return false;
-    if (/constraint/i.test(l)) return false;
-    if (/checklist/i.test(l)) return false;
-    if (/\bN\/A\b/.test(l)) return false;
-    if (/^(yes|no|n\/a)\b/i.test(l)) return false;
-    if (/here is/i.test(l)) return false;
-    if (/^review:/i.test(l)) return false;
-    return true;
-  });
-  const sentences = clean.filter(l => /[.!?]$/.test(l)).slice(0, 3);
-  return sentences.length >= 2 ? sentences.join('\n') : clean.slice(0, 3).join('\n');
+    .replace(/\s*–\s*/g, ', ')
+    .replace(/^review:/i, '')
+    .trim();
+
+  // Robust sentence splitting using regex (handles . ! ? followed by space or end of string)
+  const sentences = text
+    .split(/(?<=[.!?])\s+(?=[A-Z])|(?<=[.!?])$/)
+    .map(s => s.trim())
+    .filter(s => {
+      if (s.length < 5) return false;
+      if (/^\d+\.\s/.test(s)) return false;
+      if (/^\*\*/.test(s)) return false;
+      if (/^[-*•]\s/.test(s)) return false;
+      if (/confidence score/i.test(s)) return false;
+      if (/constraint/i.test(s)) return false;
+      if (/checklist/i.test(s)) return false;
+      if (/\bN\/A\b/.test(s)) return false;
+      if (/^(yes|no|n\/a)\b/i.test(s)) return false;
+      if (/here is/i.test(s)) return false;
+      return true;
+    });
+
+  // Return exactly 3 sentences if possible, otherwise what we have (up to 3)
+  const result = sentences.slice(0, 3);
+  return result.join('\n');
 }
 
 export const CORS_HEADERS = {
