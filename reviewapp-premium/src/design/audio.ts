@@ -99,35 +99,195 @@ export const audio = {
     tone('triangle', 540, 0.09, 0.18);
     noiseBurst(0.04, 0.04, 4000);
   },
-  /** Bow-string tension rising. Pass progress 0..1 to vary pitch. */
+  /** Rubber/elastic stretch sound using filtered noise. */
   draw(progress: number) {
-    const c = ensureCtx();
-    if (!c) return;
-    tone('sine', 200 + progress * 320, 0.08, 0.06 + progress * 0.06);
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+
+      // Layer 1 — Filtered noise (the "creaky" rubber texture)
+      const bufferSize = Math.floor(c.sampleRate * 0.08);
+      const buffer = c.createBuffer(1, bufferSize, c.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1);
+
+      const src = c.createBufferSource();
+      src.buffer = buffer;
+
+      // Bandpass filter — center frequency rises with pull progress
+      const filter = c.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 200 + (progress * 600);
+      filter.Q.value = 3.5;
+
+      // Gain envelope — quiet at low pull, louder under tension
+      const gainNode = c.createGain();
+      const baseGain = 0.04 + (progress * 0.12);
+      gainNode.gain.setValueAtTime(baseGain, c.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
+
+      src.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(c.destination);
+      src.start();
+
+      // Layer 2 — Very subtle low creak underneath (adds body)
+      if (progress > 0.4) {
+        const src2 = c.createBufferSource();
+        const buf2 = c.createBuffer(1, Math.floor(c.sampleRate * 0.06), c.sampleRate);
+        const d2 = buf2.getChannelData(0);
+        for (let i = 0; i < d2.length; i++) d2[i] = (Math.random() * 2 - 1);
+        src2.buffer = buf2;
+        const f2 = c.createBiquadFilter();
+        f2.type = 'lowpass';
+        f2.frequency.value = 120 + (progress * 80);
+        const g2 = c.createGain();
+        g2.gain.setValueAtTime(0.06 * progress, c.currentTime);
+        g2.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06);
+        src2.connect(f2);
+        f2.connect(g2);
+        g2.connect(c.destination);
+        src2.start();
+      }
+    } catch { /* fail silently */ }
   },
-  /** Bow-string release thwack. */
+  /** Bow-string release thwack — rubber snapping forward. */
   release() {
-    sweep(420, 90, 0.18, 0.22);
-    noiseBurst(0.06, 0.18, 1600);
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+
+      // Sharp low thwack — rubber snapping
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.05), c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (buf.length * 0.15));
+      }
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const filter = c.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 800;
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.9, c.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.05);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(c.destination);
+      src.start();
+
+      // High snap overtone
+      setTimeout(() => {
+        try {
+          const buf2 = c.createBuffer(1, Math.floor(c.sampleRate * 0.03), c.sampleRate);
+          const d2 = buf2.getChannelData(0);
+          for (let i = 0; i < d2.length; i++) {
+            d2[i] = (Math.random() * 2 - 1) * Math.exp(-i / (buf2.length * 0.1));
+          }
+          const s2 = c.createBufferSource();
+          s2.buffer = buf2;
+          const f2 = c.createBiquadFilter();
+          f2.type = 'bandpass';
+          f2.frequency.value = 2400;
+          f2.Q.value = 1.2;
+          const g2 = c.createGain();
+          g2.gain.setValueAtTime(0.4, c.currentTime);
+          g2.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.03);
+          s2.connect(f2);
+          f2.connect(g2);
+          g2.connect(c.destination);
+          s2.start();
+        } catch {}
+      }, 8);
+    } catch { /* fail silently */ }
   },
   /** Arrow impact thunk on the target. */
   impact() {
     tone('sine', 130, 0.12, 0.32);
     noiseBurst(0.09, 0.16, 900);
   },
-  /** Real jar crack sound with multiple layers. */
+  /** Real jar crack sound with multiple physical layers. */
   jarShatter() {
     try {
       const c = ensureCtx();
       if (!c) return;
-      // Layer 1: Initial sharp crack (high-frequency noise burst)
-      noiseBurst(0.9, 0.04, 6000);
-      // Layer 2: Glass/ceramic scatter (mid noise decay)
-      setTimeout(() => noiseBurst(0.6, 0.12, 3000), 20);
-      // Layer 3: Low resonant thud (the jar body hitting ground)
-      setTimeout(() => { tone('sine', 180, 0.4, 0.18); }, 35);
-      // Layer 4: Trailing debris (quiet high noise fade)
-      setTimeout(() => noiseBurst(0.2, 0.2, 4500), 80);
+
+      // === IMPACT TRANSIENT (0ms) ===
+      const crackBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.025), c.sampleRate);
+      const crackData = crackBuf.getChannelData(0);
+      for (let i = 0; i < crackData.length; i++) crackData[i] = (Math.random() * 2 - 1);
+      const crackSrc = c.createBufferSource();
+      crackSrc.buffer = crackBuf;
+      const crackFilter = c.createBiquadFilter();
+      crackFilter.type = 'highpass';
+      crackFilter.frequency.value = 4000;
+      const crackGain = c.createGain();
+      crackGain.gain.setValueAtTime(1.2, c.currentTime);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.025);
+      crackSrc.connect(crackFilter);
+      crackFilter.connect(crackGain);
+      crackGain.connect(c.destination);
+      crackSrc.start();
+
+      // === CERAMIC SCATTER (20ms) ===
+      setTimeout(() => {
+        try {
+          const scatterBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.18), c.sampleRate);
+          const scatterData = scatterBuf.getChannelData(0);
+          for (let i = 0; i < scatterData.length; i++) scatterData[i] = (Math.random() * 2 - 1);
+          const scatterSrc = c.createBufferSource();
+          scatterSrc.buffer = scatterBuf;
+          const scatterFilter = c.createBiquadFilter();
+          scatterFilter.type = 'bandpass';
+          scatterFilter.frequency.value = 2200;
+          scatterFilter.Q.value = 0.6;
+          const scatterGain = c.createGain();
+          scatterGain.gain.setValueAtTime(0.55, c.currentTime);
+          scatterGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
+          scatterSrc.connect(scatterFilter);
+          scatterFilter.connect(scatterGain);
+          scatterGain.connect(c.destination);
+          scatterSrc.start();
+        } catch {}
+      }, 20);
+
+      // === BODY THUD (40ms) ===
+      setTimeout(() => {
+        try {
+          const osc = c.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(160, c.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(60, c.currentTime + 0.15);
+          const g = c.createGain();
+          g.gain.setValueAtTime(0.5, c.currentTime);
+          g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
+          osc.connect(g);
+          g.connect(c.destination);
+          osc.start();
+          osc.stop(c.currentTime + 0.16);
+        } catch {}
+      }, 40);
+
+      // === DUST TAIL (100ms) ===
+      setTimeout(() => {
+        try {
+          const dustBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.25), c.sampleRate);
+          const dustData = dustBuf.getChannelData(0);
+          for (let i = 0; i < dustData.length; i++) dustData[i] = (Math.random() * 2 - 1);
+          const dustSrc = c.createBufferSource();
+          dustSrc.buffer = dustBuf;
+          const dustFilter = c.createBiquadFilter();
+          dustFilter.type = 'highpass';
+          dustFilter.frequency.value = 3500;
+          const dustGain = c.createGain();
+          dustGain.gain.setValueAtTime(0.15, c.currentTime);
+          dustGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
+          dustSrc.connect(dustFilter);
+          dustFilter.connect(dustGain);
+          dustGain.connect(c.destination);
+          dustSrc.start();
+        } catch {}
+      }, 100);
     } catch { /* fail silently */ }
   },
   /** Bullseye bell — bright, short, satisfying. */

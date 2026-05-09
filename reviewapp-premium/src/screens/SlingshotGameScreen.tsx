@@ -311,10 +311,12 @@ export default function SlingshotGameScreen() {
     setPullX(newPullX);
     setPullY(newPullY);
 
-    // Audio: Elastic stretch sound with rising pitch
-    if (Math.abs(newPullY - lastDrawProgressRef.current) >= 0.05) {
-      audio.draw(newPullY);
-      lastDrawProgressRef.current = newPullY;
+    // Audio: Elastic stretch sound with creaking rubber texture
+    if (isDragging && newPullY > PHYSICS.MIN_POWER * 0.5) {
+      if (Math.abs(newPullY - lastDrawProgressRef.current) > 0.04) {
+        audio.draw(newPullY);
+        lastDrawProgressRef.current = newPullY;
+      }
     }
 
     // Real-time trajectory prediction for jar highlighting
