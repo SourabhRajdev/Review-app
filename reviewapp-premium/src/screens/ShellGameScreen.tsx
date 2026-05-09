@@ -375,6 +375,9 @@ export default function ShellGameScreen() {
 
     setPhase('ball_drop');
 
+    // FIX A: Reset cup position before drop
+    cupPhysY.set(window.innerHeight + 80);
+
     // ── Start physics drop sequence ──
     const startY = -60; 
     const targetY = window.innerHeight * 0.72;
@@ -431,12 +434,8 @@ export default function ShellGameScreen() {
         setBallPhys(prev => ({ ...prev, visible: false }));
         haptics.press();
         
-        setTimeout(async () => {
-          try {
-            await animate(cupPhysY, 0, { type: 'spring', stiffness: 280, damping: 28 });
-          } catch {}
-          setPhase('cup_show');
-        }, 120);
+        // FIX B: Direct phase transition
+        setTimeout(() => setPhase('cup_show'), 120);
         return;
       }
       
