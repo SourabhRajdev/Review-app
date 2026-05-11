@@ -53,6 +53,7 @@ export default function GeneratingScreen() {
   const resetTranscript = useTranscriptStore((s) => s.reset);
   const called = useRef(false);
   const [messageIdx, setMessageIdx] = useState(0);
+  const hiddenInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -60,6 +61,57 @@ export default function GeneratingScreen() {
     }, 2200);
     return () => clearInterval(interval);
   }, []);
+
+  // Helper to copy using multiple fallback methods
+  async function copyWithFallbacks(text: string): Promise<boolean> {
+    // Method 1: Modern Clipboard API
+    try {
+      await navigator.clipboard.writeText(text);
+      console.log('✅ [GeneratingScreen] Copied via Clipboard API');
+      return true;
+    } catch (err) {
+      console.log('⚠️ [GeneratingScreen] Clipboard API failed, trying fallback:', err);
+    }
+
+    // Method 2: Hidden textarea with execCommand (works in more contexts)
+    try {
+      if (hiddenInputRef.current) {
+        hiddenInputRef.current.value = text;
+        hiddenInputRef.current.style.display = 'block';
+        hiddenInputRef.current.focus();
+        hiddenInputRef.current.select();
+        const success = document.execCommand('copy');
+        hiddenInputRef.current.style.display = 'none';
+        if (success) {
+          console.log('✅ [GeneratingScreen] Copied via execCommand');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.log('⚠️ [GeneratingScreen] execCommand failed:', err);
+    }
+
+    // Method 3: Create temporary textarea
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (success) {
+        console.log('✅ [GeneratingScreen] Copied via temp textarea');
+        return true;
+      }
+    } catch (err) {
+      console.log('⚠️ [GeneratingScreen] Temp textarea failed:', err);
+    }
+
+    console.error('❌ [GeneratingScreen] All copy methods failed');
+    return false;
+  }
 
   useEffect(() => {
     if (called.current) return;
@@ -122,10 +174,8 @@ export default function GeneratingScreen() {
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
 
-      // Copy to clipboard before navigation
-      navigator.clipboard.writeText(reviewText).catch(() => {
-        console.log('📋 [GeneratingScreen] Clipboard copy failed (expected in some contexts)');
-      });
+      // Copy to clipboard with fallbacks
+      await copyWithFallbacks(reviewText);
 
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
@@ -144,10 +194,8 @@ export default function GeneratingScreen() {
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
 
-      // Copy to clipboard before navigation
-      navigator.clipboard.writeText(fallbackText).catch(() => {
-        console.log('📋 [GeneratingScreen] Clipboard copy failed (expected in some contexts)');
-      });
+      // Copy to clipboard with fallbacks
+      await copyWithFallbacks(fallbackText);
 
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
@@ -268,11 +316,9 @@ export default function GeneratingScreen() {
         const reviewText = data.review || '';
         setReview(reviewText);
         
-        // Copy to clipboard before navigation
+        // Copy to clipboard with fallbacks
         if (reviewText) {
-          navigator.clipboard.writeText(reviewText).catch(() => {
-            console.log('📋 [GeneratingScreen] Clipboard copy failed');
-          });
+          copyWithFallbacks(reviewText);
         }
         
         go('review');
@@ -285,6 +331,24 @@ export default function GeneratingScreen() {
 
   return (
     <ScreenShell className="items-center justify-center text-center" hideProgress hideBack>
+      {/* Hidden textarea for clipboard fallback */}
+      <textarea
+        ref={hiddenInputRef}
+        style={{
+          position: 'fixed',
+          top: '-9999px',
+          left: '-9999px',
+          width: '1px',
+          height: '1px',
+          opacity: 0,
+          pointerEvents: 'none',
+          display: 'none',
+        }}
+        readOnly
+        aria-hidden="true"
+        tabIndex={-1}
+      />
+
       {/* Branded spinner — 8-dot ring, coffee brown dots */}
       <div className="mb-8">
         <BrandedSpinner />

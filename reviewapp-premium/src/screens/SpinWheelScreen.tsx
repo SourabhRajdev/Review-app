@@ -509,9 +509,17 @@ export default function SpinWheelScreen() {
     spinningRef.current = false;
   }
 
-  function handleContinue() {
+  async function handleContinue() {
     haptics.press();
     audio.tap();
+    
+    // Request clipboard permission in user gesture for later auto-copy
+    try {
+      await navigator.clipboard.writeText('');
+    } catch {
+      // Permission denied or not supported
+    }
+    
     go('generating');
   }
 

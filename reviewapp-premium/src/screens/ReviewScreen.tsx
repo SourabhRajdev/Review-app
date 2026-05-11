@@ -83,9 +83,12 @@ export default function ReviewScreen() {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [showCopied, setShowCopied] = useState(true); // Show immediately on mount
+  // Show auto-copy indicator - fallback methods should work for both voice and game flows
+  const [showCopied, setShowCopied] = useState(true);
   const [showConfetti, setShowConfetti] = useState(true);
   const [userEdited, setUserEdited] = useState(false);
+  // Auto-copied state for button flash
+  const [autoCopied, setAutoCopied] = useState(true);
 
   const displayText = text?.trim() ? text : 'Your review will appear here.';
 
@@ -102,6 +105,12 @@ export default function ReviewScreen() {
   // Dismiss "Copied!" indicator after 2.5s
   useEffect(() => {
     const t = setTimeout(() => setShowCopied(false), 2500);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Flash button "Copied!" for 2 seconds on mount
+  useEffect(() => {
+    const t = setTimeout(() => setAutoCopied(false), 2000);
     return () => clearTimeout(t);
   }, []);
 
@@ -273,19 +282,42 @@ export default function ReviewScreen() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
-        {/* Copy CTA — coffee gradient — always visible */}
-        <PrimaryButton onClick={handleCopy}>
-          {copied ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 13l4 4L19 7" />
-              </svg>
-              Copied!
-            </span>
-          ) : (
-            userEdited ? 'Copy Edited Review' : 'Copy Review'
+        {/* Copy CTA — shows green "Copied!" for 2s on mount */}
+        <div className="relative">
+          <PrimaryButton onClick={handleCopy}>
+            {(copied || autoCopied) ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              </span>
+            ) : (
+              userEdited ? 'Copy Edited Review' : 'Copy Review'
+            )}
+          </PrimaryButton>
+          {/* Green overlay when auto-copied */}
+          {autoCopied && (
+            <motion.div
+              className="absolute inset-0 rounded-button pointer-events-none flex items-center justify-center text-white font-bold"
+              style={{
+                background: '#0D9E6F',
+                boxShadow: '0 4px 20px rgba(13,158,111,0.35)',
+              }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <span className="flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              </span>
+            </motion.div>
           )}
-        </PrimaryButton>
+        </div>
 
         {/* Google link — white card with border */}
         <motion.button
