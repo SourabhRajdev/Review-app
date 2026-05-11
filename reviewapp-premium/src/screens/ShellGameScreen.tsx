@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   motion, AnimatePresence,
-  useMotionValue, useSpring, animate,
+  useMotionValue, animate,
   type MotionValue,
 } from 'framer-motion';
 import ScreenShell from './ScreenShell';
@@ -238,7 +238,6 @@ export default function ShellGameScreen() {
   const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, vy: 0, visible: false, bouncing: false });
   const ballPhysRef = useRef({ x: 0, y: 0, vy: 0, frame: 0, active: false, bouncing: false, bounceCount: 0 });
   const cupPhysY = useMotionValue(300); // Start below the arena
-  const cupPhysSpring = useSpring(cupPhysY, { stiffness: 400, damping: 30 });
 
   // FIX: Initialize spring with immediate: true on first frame to prevent jumping
   useEffect(() => {
@@ -483,7 +482,6 @@ export default function ShellGameScreen() {
       const WIND_FREQ = 0.045;
       const BOUNCE_DAMPING = 0.55; // Energy loss on bounce (55% retained)
       const MIN_BOUNCE_VY = 1.5; // Minimum velocity to bounce
-      const GROUND_THRESHOLD = 3; // How close to ground before settling
 
       // Apply gravity
       p.vy = Math.min(p.vy + GRAVITY, MAX_VY);

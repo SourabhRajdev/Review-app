@@ -395,7 +395,6 @@ export default function SlingshotGameScreen() {
   const animationFrameRef = useRef<number | null>(null);
   const windTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastDrawProgressRef = useRef(0);
-  const [windZone, setWindZone] = useState({ top: 0, height: 0 });
 
   const currentRound = ROUNDS[roundIdx];
 
@@ -412,33 +411,6 @@ export default function SlingshotGameScreen() {
       if (windTimerRef.current) clearInterval(windTimerRef.current);
     };
   }, [phase]);
-
-  // ── Measure wind zone from DOM ──
-  useEffect(() => {
-    function measure() {
-      const arena = arenaRef.current;
-      const shelf = shelfRef.current;
-      const jarsRow = jarsRowRef.current;
-      if (!arena || !shelf || !jarsRow) return;
-
-      const arenaRect = arena.getBoundingClientRect();
-      const shelfRect = shelf.getBoundingClientRect();
-      const jarsRect = jarsRow.getBoundingClientRect();
-
-      // Wind zone = from bottom of jars row to top of shelf line
-      const top = jarsRect.bottom - arenaRect.top;
-      const bottom = shelfRect.top - arenaRect.top;
-      const height = bottom - top;
-
-      if (height > 20) {
-        setWindZone({ top, height });
-      }
-    }
-
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
 
   // ══════════════════════════════════════════════════════════════════════════════
   // 🎯  POINTER HANDLERS
