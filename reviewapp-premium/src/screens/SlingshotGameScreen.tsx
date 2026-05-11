@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
@@ -33,7 +33,7 @@ const JAR_POSITIONS = [
 const HIT_RADIUS = 8; // Percentage units for collision detection
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 🌬️  PHYSICAL WIND SYSTEM (HIGH-VISIBILITY ORGANIC CURRENTS)
+// 🌬️  CANVAS-BASED GHOST STREAK WIND
 // ══════════════════════════════════════════════════════════════════════════════
 
 interface Wind {
@@ -45,72 +45,169 @@ interface Wind {
 function PhysicalWind({
   wind,
   visible,
-  zoneTop,
-  zoneHeight,
 }: {
   wind: Wind;
   visible: boolean;
-  zoneTop: number;
-  zoneHeight: number;
 }) {
-  const gusts = useMemo(() => [
-    { id: 0, top: '8%',  w: 220, h: 70,  delay: 0,    dur: 6.0, br: '60% 40% 55% 45% / 50% 60% 40% 50%', op: 0.55 },
-    { id: 1, top: '22%', w: 300, h: 90,  delay: 1.2,  dur: 7.5, br: '45% 55% 60% 40% / 40% 50% 60% 50%', op: 0.45 },
-    { id: 2, top: '38%', w: 260, h: 80,  delay: 0.5,  dur: 6.8, br: '55% 45% 40% 60% / 60% 40% 55% 45%', op: 0.50 },
-    { id: 3, top: '55%', w: 180, h: 60,  delay: 2.0,  dur: 5.5, br: '40% 60% 55% 45% / 45% 55% 40% 60%', op: 0.40 },
-    { id: 4, top: '15%', w: 150, h: 50,  delay: 3.0,  dur: 5.0, br: '50% 50% 60% 40% / 40% 60% 50% 50%', op: 0.35 },
-    { id: 5, top: '68%', w: 240, h: 75,  delay: 0.8,  dur: 7.0, br: '60% 40% 45% 55% / 55% 45% 60% 40%', op: 0.45 },
-    { id: 6, top: '42%', w: 170, h: 65,  delay: 3.5,  dur: 5.8, br: '45% 55% 50% 50% / 60% 40% 55% 45%', op: 0.38 },
-    { id: 7, top: '30%', w: 280, h: 85,  delay: 1.8,  dur: 8.0, br: '55% 45% 60% 40% / 45% 55% 40% 60%', op: 0.48 },
-  ], []);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
 
-  const count = { calm: 0, light: 3, medium: 5, strong: 8 }[wind.strength] ?? 0;
-  const speedMult = { calm: 1, light: 1.0, medium: 0.7, strong: 0.45 }[wind.strength] ?? 1;
-  const isLeft = wind.direction === 'left';
+  useEffect(() => {
+    if (!visible || wind.strength === 'calm') return;
 
-  if (!visible || count === 0 || zoneHeight < 20) return null;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Force canvas to full arena size for visibility
+    canvas.width = canvas.offsetWidth || 800;
+    canvas.height = canvas.offsetHeight || 300;
+
+    const W = canvas.width;
+    const H = canvas.height;
+    const isLeft = wind.direction === 'left';
+
+    const speedMap = { calm: 1, light: 0.008, medium: 0.014, strong: 0.022 };
+    const countMap = { calm: 0, light: 5, medium: 8, strong: 12 };
+
+    const baseSpeed = speedMap[wind.strength] ?? 0.012;
+    const count = countMap[wind.strength] ?? 0;
+
+    // SVG path helper — get points along a bezier path
+    function getPathPoints(d: string): { x: number; y: number }[] {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.style.cssText = 'position:absolute;width:0;height:0;visibility:hidden;';
+      document.body.appendChild(svg);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      svg.appendChild(path);
+
+      const len = path.getTotalLength();
+      const pts: { x: number; y: number }[] = [];
+
+      for (let i = 0; i <= 120; i++) {
+        const pt = path.getPointAtLength((i / 120) * len);
+        pts.push({ x: pt.x, y: pt.y });
+      }
+
+      document.body.removeChild(svg);
+      return pts;
+    }
+
+    // Define curved S-path generators - constrained to middle zone (30% to 70% height)
+    const pathFns = [
+      () => `M ${-W * 0.1} ${H * 0.35} Q ${W * 0.25} ${H * 0.28} ${W * 0.5} ${H * 0.38} T ${W * 1.1} ${H * 0.32}`,
+      () => `M ${-W * 0.1} ${H * 0.48} Q ${W * 0.3} ${H * 0.42} ${W * 0.6} ${H * 0.52} S ${W * 0.85} ${H * 0.45} ${W * 1.1} ${H * 0.5}`,
+      () => `M ${-W * 0.1} ${H * 0.58} Q ${W * 0.2} ${H * 0.52} ${W * 0.45} ${H * 0.62} T ${W * 0.75} ${H * 0.56} T ${W * 1.1} ${H * 0.6}`,
+      () => `M ${-W * 0.1} ${H * 0.42} Q ${W * 0.28} ${H * 0.36} ${W * 0.55} ${H * 0.45} S ${W * 0.82} ${H * 0.38} ${W * 1.1} ${H * 0.43}`,
+      () => `M ${-W * 0.1} ${H * 0.65} Q ${W * 0.32} ${H * 0.58} ${W * 0.62} ${H * 0.68} T ${W * 1.1} ${H * 0.62}`,
+      () => `M ${-W * 0.1} ${H * 0.38} Q ${W * 0.22} ${H * 0.32} ${W * 0.48} ${H * 0.42} S ${W * 0.78} ${H * 0.35} ${W * 1.1} ${H * 0.4}`,
+      () => `M ${-W * 0.1} ${H * 0.52} Q ${W * 0.35} ${H * 0.46} ${W * 0.65} ${H * 0.55} T ${W * 1.1} ${H * 0.5}`,
+      () => `M ${-W * 0.1} ${H * 0.45} Q ${W * 0.26} ${H * 0.38} ${W * 0.52} ${H * 0.48} S ${W * 0.8} ${H * 0.42} ${W * 1.1} ${H * 0.46}`,
+      () => `M ${-W * 0.1} ${H * 0.55} Q ${W * 0.3} ${H * 0.48} ${W * 0.58} ${H * 0.58} T ${W * 1.1} ${H * 0.53}`,
+      () => `M ${-W * 0.1} ${H * 0.62} Q ${W * 0.24} ${H * 0.56} ${W * 0.5} ${H * 0.65} S ${W * 0.76} ${H * 0.58} ${W * 1.1} ${H * 0.63}`,
+      () => `M ${-W * 0.1} ${H * 0.4} Q ${W * 0.33} ${H * 0.34} ${W * 0.6} ${H * 0.43} T ${W * 1.1} ${H * 0.38}`,
+      () => `M ${-W * 0.1} ${H * 0.5} Q ${W * 0.27} ${H * 0.44} ${W * 0.54} ${H * 0.53} S ${W * 0.83} ${H * 0.47} ${W * 1.1} ${H * 0.51}`,
+    ];
+
+    interface Gust {
+      points: { x: number; y: number }[];
+      progress: number;
+      speed: number;
+      segLen: number;
+      maxW: number;
+      pathFn: () => string;
+    }
+
+    const gusts: Gust[] = pathFns.slice(0, count).map((fn, i) => ({
+      points: getPathPoints(fn()),
+      progress: -(i * 0.15),
+      speed: baseSpeed + Math.random() * 0.004,
+      segLen: 0.12 + Math.random() * 0.08,
+      maxW: 1.5 + Math.random() * 1.0, // Thinner: 1.5 to 2.5
+      pathFn: fn,
+    }));
+
+    // Store ctx in a const to satisfy TypeScript
+    const context = ctx;
+
+    function loop() {
+      context.clearRect(0, 0, W, H);
+
+      for (const g of gusts) {
+        g.progress += g.speed;
+
+        if (g.progress > 1 + g.segLen) {
+          g.progress = -0.05 - Math.random() * 0.1;
+          g.speed = baseSpeed + Math.random() * 0.004;
+          g.segLen = 0.12 + Math.random() * 0.08;
+          g.maxW = 1.5 + Math.random() * 1.0; // Thinner
+          g.points = getPathPoints(g.pathFn());
+        }
+
+        const head = Math.min(1, Math.max(0, g.progress));
+        const tail = Math.min(1, Math.max(0, g.progress - g.segLen));
+
+        if (head <= tail) continue;
+
+        const total = g.points.length - 1;
+        const hi = Math.round(head * total);
+        const ti = Math.round(tail * total);
+        const seg = hi - ti;
+
+        if (seg < 2) continue;
+
+        // Flip x for leftward wind
+        const px = (x: number) => (isLeft ? W - x : x);
+
+        for (let i = ti + 1; i <= hi; i++) {
+          const p = g.points[i];
+          const prev = g.points[i - 1];
+
+          if (!p || !prev) continue;
+
+          const localT = (i - ti) / seg;
+          const taper = Math.sin(localT * Math.PI);
+
+          context.beginPath();
+          context.moveTo(px(prev.x), prev.y);
+          context.lineTo(px(p.x), p.y);
+          // Lighter, more subtle wind streaks
+          context.strokeStyle = `rgba(120,100,80,${taper * 0.4})`;
+          context.lineWidth = taper * g.maxW;
+          context.lineCap = 'round';
+          context.stroke();
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
+    }
+
+    rafRef.current = requestAnimationFrame(loop);
+
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [visible, wind.strength, wind.direction]);
+
+  if (!visible || wind.strength === 'calm') return null;
 
   return (
-    <div
-      className="pointer-events-none"
+    <canvas
+      ref={canvasRef}
       style={{
         position: 'absolute',
-        top: zoneTop,
-        height: zoneHeight,
+        top: 0,
         left: 0,
         right: 0,
-        overflow: 'hidden',
-        zIndex: 4,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: 8,
       }}
-    >
-      {gusts.slice(0, count).map((g) => (
-        <motion.div
-          key={g.id}
-          className="absolute"
-          style={{
-            top: g.top,
-            width: g.w,
-            height: g.h,
-            borderRadius: g.br,
-            background: `radial-gradient(ellipse at 35% 40%,
-              rgba(210, 225, 240, ${g.op}) 0%,
-              rgba(190, 210, 230, ${g.op * 0.75}) 45%,
-              rgba(170, 195, 220, ${g.op * 0.3}) 75%,
-              transparent 100%
-            )`,
-            filter: 'blur(10px)',
-          }}
-          initial={{ x: isLeft ? `calc(100vw + ${g.w}px)` : `-${g.w + 20}px` }}
-          animate={{ x: isLeft ? `-${g.w + 20}px` : `calc(100vw + ${g.w}px)` }}
-          transition={{
-            duration: g.dur * speedMult,
-            repeat: Infinity,
-            delay: g.delay,
-            ease: 'linear',
-          }}
-        />
-      ))}
-    </div>
+    />
   );
 }
 
@@ -810,8 +907,6 @@ export default function SlingshotGameScreen() {
           <PhysicalWind
             wind={wind}
             visible={phase === 'aiming' || phase === 'flying'}
-            zoneTop={windZone.top}
-            zoneHeight={windZone.height}
           />
 
           {/* Wind strength badge */}

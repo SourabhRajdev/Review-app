@@ -32,11 +32,12 @@ const CUP_PHASES: Phase[] = ['cup_show', 'cup_shuffle', 'cup_pick', 'resolving',
 
 
 // Shuffles: [slotA, slotB, durationMs]
+// Slowed down for better visibility and tracking
 const SHUFFLE_SEQUENCE: [number, number, number][] = [
-  [0, 2, 440], [0, 1, 400], [1, 2, 370],
-  [0, 2, 320], [1, 2, 290],
-  [0, 1, 240], [0, 2, 215], [1, 2, 205],
-  [0, 1, 200],
+  [0, 2, 550], [0, 1, 500], [1, 2, 480],
+  [0, 2, 450], [1, 2, 420],
+  [0, 1, 400], [0, 2, 380], [1, 2, 360],
+  [0, 1, 350],
 ];
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -234,10 +235,15 @@ export default function ShellGameScreen() {
   const [gameResult, setGameResult]     = useState<{ result: 'win' | 'lose'; ballAt: number } | null>(null);
 
   // ── Physics drop state ──
-  const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, vy: 0, visible: false });
-  const ballPhysRef = useRef({ x: 0, y: 0, vy: 0, frame: 0, active: false });
+  const [ballPhys, setBallPhys] = useState({ x: 0, y: 0, vy: 0, visible: false, bouncing: false });
+  const ballPhysRef = useRef({ x: 0, y: 0, vy: 0, frame: 0, active: false, bouncing: false, bounceCount: 0 });
   const cupPhysY = useMotionValue(300); // Start below the arena
   const cupPhysSpring = useSpring(cupPhysY, { stiffness: 400, damping: 30 });
+
+  // FIX: Initialize spring with immediate: true on first frame to prevent jumping
+  useEffect(() => {
+    cupPhysY.set(window.innerHeight + 80);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cup motion values ──
   const cup0X = useMotionValue<number>(SLOT_X[0]);
@@ -260,30 +266,61 @@ export default function ShellGameScreen() {
     if (phase !== 'cup_show') return;
     let alive = true;
 
-    // FIX C: Initialize spring position on mount
-    cupPhysY.set(window.innerHeight + 80);
-    requestAnimationFrame(() => {
-      cupPhysY.set(0);
-    });
+    // FIX: Reset ALL motion values to clean state IMMEDIATELY
+    // This prevents "ghost" values from previous renders causing visual glitches
+    cup0Y.set(0);
+    cup1Y.set(0);
+    cup2Y.set(0);
+    
+    // Reset cup positions to their initial slots
+    cup0X.set(SLOT_X[0]);
+    cup1X.set(SLOT_X[1]);
+    cup2X.set(SLOT_X[2]);
+    
+    // Reset position tracking
+    posRef.current = [0, 1, 2];
 
     (async () => {
-      await wait(380); // cups animate in
+      // Ball is already resting on ground, show it for a moment
+      await wait(600);
       if (!alive) return;
 
-      // Lift center cup (cup 1 starts at slot 1 = center)
-      await animate(cup1Y, -56, { duration: 0.32, ease: [0.16, 1, 0.3, 1] });
+      // Cups descend slowly from above to cover the ball
+      // Start cups high above
+      cup0Y.set(-150);
+      cup1Y.set(-150);
+      cup2Y.set(-150);
+      
+      // Animate all cups down to ground level simultaneously
+      await Promise.all([
+        animate(cup0Y, 0, { duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }), // Bounce ease
+        animate(cup1Y, 0, { duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }),
+        animate(cup2Y, 0, { duration: 0.8, ease: [0.34, 1.56, 0.64, 1] }),
+      ]);
+      
       if (!alive) return;
-      haptics.tick();
+      haptics.press();
       audio.tap();
 
-      await wait(680);
+      // Pause to let user see cups have landed
+      await wait(500);
       if (!alive) return;
 
-      // Lower center cup, close over ball
-      await animate(cup1Y, 0, { duration: 0.26, ease: [0.4, 0, 0.6, 1] });
+      // Lift center cup to show ball one more time
+      await animate(cup1Y, -56, { duration: 0.5, ease: [0.16, 1, 0.3, 1] });
+      if (!alive) return;
+      haptics.tick();
+
+      // Show ball under cup
+      await wait(1000);
       if (!alive) return;
 
-      await wait(380);
+      // Lower center cup to hide ball
+      await animate(cup1Y, 0, { duration: 0.4, ease: [0.4, 0, 0.6, 1] });
+      if (!alive) return;
+
+      // Pause before shuffle starts
+      await wait(600);
       if (!alive) return;
       setPhase('cup_shuffle');
     })();
@@ -300,7 +337,8 @@ export default function ShellGameScreen() {
       for (const [slotA, slotB, dur] of SHUFFLE_SEQUENCE) {
         if (!alive) break;
         await swapSlots(slotA, slotB, dur);
-        await wait(70);
+        // Longer pause between swaps so user can track
+        await wait(120);
       }
       if (alive) {
         haptics.bump();
@@ -370,30 +408,30 @@ export default function ShellGameScreen() {
   ) {
     // Find cup IDs for the picked slot and ball slot
     const pickedCupId = posRef.current.findIndex((v) => v === pickedSlot);
-    await wait(250);
+    await wait(400);
 
-    // Lift picked cup
+    // Lift picked cup slower for dramatic effect
     await animate(cupYValues[pickedCupId], -68, {
-      duration: 0.42, ease: [0.16, 1, 0.3, 1],
+      duration: 0.6, ease: [0.16, 1, 0.3, 1],
     });
 
     if (outcome === 'win') {
       haptics.jackpot();
       audio.bullseye();
-      await wait(500);
+      await wait(800);
       setPhase('win');
     } else {
       haptics.miss();
       audio.miss();
-      await wait(650);
+      await wait(900);
 
       // Near-miss: lift the adjacent cup where ball actually is
       const ballCupId = posRef.current.findIndex((v) => v === ballAt);
       await animate(cupYValues[ballCupId], -52, {
-        duration: 0.36, ease: [0.16, 1, 0.3, 1],
+        duration: 0.5, ease: [0.16, 1, 0.3, 1],
       });
       haptics.bump();
-      await wait(400);
+      await wait(600);
       setPhase('lose');
     }
   }
@@ -417,15 +455,13 @@ export default function ShellGameScreen() {
     // FIX A: Reset cup position before drop
     cupPhysY.set(window.innerHeight + 80);
 
-    // ── Start physics drop sequence ──
+    // ── Start physics drop sequence with bounce ──
     const startY = -60; 
-    const targetY = window.innerHeight * 0.72;
-    const dropDist = targetY - startY;
-    const interceptTrigger = startY + dropDist * 0.65;
+    const groundY = window.innerHeight * 0.72; // Ground level
     
-    ballPhysRef.current = { x: 0, y: startY, vy: 0, frame: 0, active: true };
-    setBallPhys({ x: 0, y: startY, vy: 0, visible: true });
-    cupPhysY.set(window.innerHeight + 80); 
+    ballPhysRef.current = { x: 0, y: startY, vy: 0, frame: 0, active: true, bouncing: false, bounceCount: 0 };
+    setBallPhys({ x: 0, y: startY, vy: 0, visible: true, bouncing: false });
+    cupPhysY.set(-200); // Keep cup off-screen during bounce
 
     const runLoop = () => {
       if (!ballPhysRef.current.active) return;
@@ -434,48 +470,55 @@ export default function ShellGameScreen() {
       p.frame++;
       
       // Safety escape
-      if (p.frame > 300) {
+      if (p.frame > 500) {
         p.active = false;
-        setBallPhys(prev => ({ ...prev, visible: false }));
         setPhase('cup_show');
         return;
       }
       
-      // Physics
-      const GRAVITY = 0.38;
-      const MAX_VY = 18;
+      // Physics constants
+      const GRAVITY = 0.28;
+      const MAX_VY = 14;
       const WIND_AMPLITUDE = 3.2;
       const WIND_FREQ = 0.045;
+      const BOUNCE_DAMPING = 0.55; // Energy loss on bounce (55% retained)
+      const MIN_BOUNCE_VY = 1.5; // Minimum velocity to bounce
+      const GROUND_THRESHOLD = 3; // How close to ground before settling
 
+      // Apply gravity
       p.vy = Math.min(p.vy + GRAVITY, MAX_VY);
       p.y += p.vy;
-      p.x = Math.sin(p.frame * WIND_FREQ) * WIND_AMPLITUDE;
       
-      setBallPhys({ x: p.x, y: p.y, vy: p.vy, visible: true });
-      
-      // Anticipation
-      if (p.y >= interceptTrigger && cupPhysY.get() > window.innerHeight) {
-        let simVy = p.vy;
-        let simY = p.y;
-        for (let i = 0; i < 28; i++) {
-          simVy = Math.min(simVy + GRAVITY, MAX_VY);
-          simY += simVy;
-        }
-        cupPhysY.set(simY - 20);
+      // Wind effect (only during fall, not during bounce settle)
+      if (!p.bouncing || p.vy > 2) {
+        p.x = Math.sin(p.frame * WIND_FREQ) * WIND_AMPLITUDE;
       }
       
-      // Capture
-      const springCaughtUp = Math.abs(p.y - cupPhysSpring.get()) < 18 && p.y > interceptTrigger;
-      const ballPassedTarget = p.y >= targetY;
-
-      if (springCaughtUp || ballPassedTarget) {
-        p.active = false;
-        setBallPhys(prev => ({ ...prev, visible: false }));
-        haptics.press();
+      setBallPhys({ x: p.x, y: p.y, vy: p.vy, visible: true, bouncing: p.bouncing });
+      
+      // Check for ground collision
+      if (p.y >= groundY && p.vy > 0) {
+        p.bouncing = true;
+        p.bounceCount++;
         
-        // FIX B: Direct phase transition
-        setTimeout(() => setPhase('cup_show'), 120);
-        return;
+        // Bounce if velocity is high enough
+        if (Math.abs(p.vy) > MIN_BOUNCE_VY && p.bounceCount <= 2) {
+          p.y = groundY; // Snap to ground
+          p.vy = -p.vy * BOUNCE_DAMPING; // Reverse and dampen
+          haptics.tick(); // Haptic on each bounce
+        } else {
+          // Ball has settled
+          p.y = groundY;
+          p.vy = 0;
+          p.active = false;
+          haptics.press();
+          
+          // Keep ball visible and settled, then bring cups down
+          setTimeout(() => {
+            setPhase('cup_show');
+          }, 400);
+          return;
+        }
       }
       
       requestAnimationFrame(runLoop);
@@ -617,7 +660,15 @@ export default function ShellGameScreen() {
               key="ball-drop"
               className="flex-1 relative overflow-hidden"
               initial={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              exit={{ 
+                opacity: 0, 
+                transition: { 
+                  duration: 0.4, 
+                  ease: "easeOut",
+                  // FIX: Ensure exit animation completes before unmount
+                  delay: 0 
+                } 
+              }}
             >
               {/* Atmospheric Wind Lines */}
               <div 
@@ -641,8 +692,8 @@ export default function ShellGameScreen() {
               {/* Ball falling with physics and Ghost Trail */}
               {ballPhys.visible && (
                 <>
-                  {/* 4 Motion-blur ghosts */}
-                  {[0.18, 0.12, 0.08, 0.04].map((op, i) => {
+                  {/* Motion-blur ghosts - only show during fall, not during bounce settle */}
+                  {!ballPhys.bouncing && [0.18, 0.12, 0.08, 0.04].map((op, i) => {
                     const ghostIdx = i + 1;
                     const ghostY = ballPhys.y - (ghostIdx * ballPhys.vy * 1.2);
                     return (
@@ -673,14 +724,6 @@ export default function ShellGameScreen() {
                   </motion.div>
                 </>
               )}
-
-              {/* Rising cup to catch ball */}
-              <motion.div
-                className="absolute left-1/2 -translate-x-1/2"
-                style={{ top: cupPhysSpring, zIndex: 10 }}
-              >
-                <CupSVG highlighted={false} lifted />
-              </motion.div>
             </motion.div>
           )}
 
@@ -695,7 +738,7 @@ export default function ShellGameScreen() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
+              transition={{ duration: 0.4, ease: "easeInOut" }}
             >
               {/* Header */}
               <motion.div
@@ -732,14 +775,14 @@ export default function ShellGameScreen() {
               {/* Cup + ball arena */}
               <div className="relative flex justify-center items-end" style={{ height: 180 }}>
 
-                {/* Ball — visible only during cup_show (peeks out) and win/lose reveal */}
+                {/* Ball — visible during cup_show (stays on ground) and win/lose reveal */}
                 <AnimatePresence>
                   {phase === 'cup_show' && (
                     <motion.div
                       key="ball-show"
                       className="absolute z-0"
                       style={{ bottom: 20, left: '50%', x: '-50%' }}
-                      initial={{ opacity: 0, scale: 0.6 }}
+                      initial={{ opacity: 1, scale: 1 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0 }}
                       transition={spring.snappy}
