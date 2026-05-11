@@ -42,132 +42,73 @@ interface Wind {
   strength: 'calm' | 'light' | 'medium' | 'strong';
 }
 
-function PhysicalWind({ wind, visible }: { wind: Wind; visible: boolean }) {
-  // Deterministic wind path definitions — organic curves, NOT straight lines
-  // Each path is a bezier curve that swoops and curls like real wind illustration
-  const windPaths = useMemo(() => [
-    // Long sweeping S-curve
-    { id: 0, d: "M-20,0 C20,-25 60,25 100,0 S160,-20 200,5",        y: '18%', scale: 1.1,   delay: 0,    dur: 2.2 },
-    // Short curl with spiral end
-    { id: 1, d: "M-10,0 C15,-18 40,18 70,0 C85,-10 90,-8 88,-2",    y: '28%', scale: 0.85,  delay: 0.4,  dur: 1.8 },
-    // Long gentle wave
-    { id: 2, d: "M-30,0 C10,20 50,-20 90,0 C120,15 150,-10 200,0",  y: '38%', scale: 1.2,   delay: 0.8,  dur: 2.5 },
-    // Medium swoosh upward
-    { id: 3, d: "M-15,10 C20,-15 55,5 80,-10 C100,-20 115,-15 120,-5", y: '50%', scale: 0.9, delay: 0.2, dur: 1.9 },
-    // Tight curl loop
-    { id: 4, d: "M-10,0 C10,-20 30,20 50,0 C60,-10 65,-8 62,-2",    y: '60%', scale: 0.75,  delay: 1.0,  dur: 1.6 },
-    // Wide sweeping arc
-    { id: 5, d: "M-40,5 C20,-30 80,30 140,0 C170,-15 190,-5 210,8", y: '70%', scale: 1.0,   delay: 0.6,  dur: 2.8 },
-    // Short sharp gust
-    { id: 6, d: "M-5,0 C10,-12 25,12 45,0 C52,-6 55,-4 53,-1",      y: '22%', scale: 0.7,   delay: 1.4,  dur: 1.4 },
-    // Long double wave
-    { id: 7, d: "M-30,0 C0,22 40,-22 80,0 C110,18 145,-18 180,0",   y: '45%', scale: 1.15,  delay: 0.9,  dur: 2.3 },
-    // Spiral-ish curl at end
-    { id: 8, d: "M-20,8 C15,-20 50,5 75,-8 C90,-16 95,-12 92,-5 C90,-1 87,2 88,5", y: '58%', scale: 0.95, delay: 1.7, dur: 2.0 },
-    // Gentle high arc
-    { id: 9, d: "M-25,0 C30,-35 70,5 120,-10 C150,-18 175,-5 200,0", y: '32%', scale: 1.05, delay: 0.3, dur: 2.6 },
+function PhysicalWind({
+  wind,
+  visible,
+  zoneTop,
+  zoneHeight,
+}: {
+  wind: Wind;
+  visible: boolean;
+  zoneTop: number;
+  zoneHeight: number;
+}) {
+  const gusts = useMemo(() => [
+    { id: 0, top: '8%',  w: 220, h: 70,  delay: 0,    dur: 6.0, br: '60% 40% 55% 45% / 50% 60% 40% 50%', op: 0.55 },
+    { id: 1, top: '22%', w: 300, h: 90,  delay: 1.2,  dur: 7.5, br: '45% 55% 60% 40% / 40% 50% 60% 50%', op: 0.45 },
+    { id: 2, top: '38%', w: 260, h: 80,  delay: 0.5,  dur: 6.8, br: '55% 45% 40% 60% / 60% 40% 55% 45%', op: 0.50 },
+    { id: 3, top: '55%', w: 180, h: 60,  delay: 2.0,  dur: 5.5, br: '40% 60% 55% 45% / 45% 55% 40% 60%', op: 0.40 },
+    { id: 4, top: '15%', w: 150, h: 50,  delay: 3.0,  dur: 5.0, br: '50% 50% 60% 40% / 40% 60% 50% 50%', op: 0.35 },
+    { id: 5, top: '68%', w: 240, h: 75,  delay: 0.8,  dur: 7.0, br: '60% 40% 45% 55% / 55% 45% 60% 40%', op: 0.45 },
+    { id: 6, top: '42%', w: 170, h: 65,  delay: 3.5,  dur: 5.8, br: '45% 55% 50% 50% / 60% 40% 55% 45%', op: 0.38 },
+    { id: 7, top: '30%', w: 280, h: 85,  delay: 1.8,  dur: 8.0, br: '55% 45% 60% 40% / 45% 55% 40% 60%', op: 0.48 },
   ], []);
 
-  const count = { calm: 0, light: 3, medium: 6, strong: 10 }[wind.strength] ?? 0;
-  const speedMult = { calm: 1, light: 1.0, medium: 0.65, strong: 0.38 }[wind.strength] ?? 1;
+  const count = { calm: 0, light: 3, medium: 5, strong: 8 }[wind.strength] ?? 0;
+  const speedMult = { calm: 1, light: 1.0, medium: 0.7, strong: 0.45 }[wind.strength] ?? 1;
   const isLeft = wind.direction === 'left';
 
-  if (!visible || wind.strength === 'calm' || count === 0) return null;
-
-  // Base stroke color — warm ink that matches the app palette
-  const strokeColor = "rgba(80, 60, 40, 0.55)";
-  const strokeColorLight = "rgba(80, 60, 40, 0.30)";
+  if (!visible || count === 0 || zoneHeight < 20) return null;
 
   return (
     <div
-      className="absolute pointer-events-none overflow-hidden"
+      className="pointer-events-none"
       style={{
-        top: '28%',
-        bottom: '30%',
+        position: 'absolute',
+        top: zoneTop,
+        height: zoneHeight,
         left: 0,
         right: 0,
-        zIndex: 6,
+        overflow: 'hidden',
+        zIndex: 4,
       }}
     >
-      {windPaths.slice(0, count).map((p) => {
-        // Travel distance: paths move fully off screen in wind direction
-        const travelFrom = isLeft ? '105vw' : '-220px';
-        const travelTo   = isLeft ? '-220px' : '105vw';
-
-        return (
-          <motion.div
-            key={p.id}
-            className="absolute pointer-events-none"
-            style={{
-              top: p.y,
-              left: 0,
-              width: '220px',
-              height: '60px',
-              // Flip entire element for left wind direction
-              scaleX: isLeft ? -1 : 1,
-            }}
-            initial={{ x: travelFrom }}
-            animate={{ x: travelTo }}
-            transition={{
-              duration: p.dur * speedMult,
-              repeat: Infinity,
-              delay: p.delay,
-              ease: 'linear',
-            }}
-          >
-            <svg
-              width="220"
-              height="60"
-              viewBox="-50 -35 270 70"
-              overflow="visible"
-              style={{ transform: `scale(${p.scale})`, transformOrigin: 'left center' }}
-            >
-              {/* Shadow/depth stroke — slightly thicker, lighter */}
-              <path
-                d={p.d}
-                fill="none"
-                stroke={strokeColorLight}
-                strokeWidth="3.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              {/* Main wind stroke */}
-              <path
-                d={p.d}
-                fill="none"
-                stroke={strokeColor}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </motion.div>
-        );
-      })}
-
-      {/* Spiral puffs for strong wind */}
-      {wind.strength === 'strong' && [
-        { id: 'p1', top: '15%', delay: 0.5 },
-        { id: 'p2', top: '72%', delay: 1.2 },
-      ].map((puff) => (
+      {gusts.slice(0, count).map((g) => (
         <motion.div
-          key={puff.id}
-          className="absolute pointer-events-none"
-          style={{ top: puff.top, width: 48, height: 48 }}
-          initial={{ x: isLeft ? '105vw' : '-60px', opacity: 0 }}
-          animate={{ x: isLeft ? '-60px' : '105vw', opacity: [0, 0.7, 0.7, 0] }}
-          transition={{ duration: 1.8 * speedMult, repeat: Infinity, delay: puff.delay, ease: 'linear' }}
-        >
-          <svg width="48" height="48" viewBox="0 0 48 48">
-            <path
-              d="M24,24 C24,18 30,18 30,24 C30,30 18,32 18,24 C18,14 32,12 34,22"
-              fill="none"
-              stroke={strokeColor}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </motion.div>
+          key={g.id}
+          className="absolute"
+          style={{
+            top: g.top,
+            width: g.w,
+            height: g.h,
+            borderRadius: g.br,
+            background: `radial-gradient(ellipse at 35% 40%,
+              rgba(210, 225, 240, ${g.op}) 0%,
+              rgba(190, 210, 230, ${g.op * 0.75}) 45%,
+              rgba(170, 195, 220, ${g.op * 0.3}) 75%,
+              transparent 100%
+            )`,
+            filter: 'blur(10px)',
+          }}
+          initial={{ x: isLeft ? `calc(100vw + ${g.w}px)` : `-${g.w + 20}px` }}
+          animate={{ x: isLeft ? `-${g.w + 20}px` : `calc(100vw + ${g.w}px)` }}
+          transition={{
+            duration: g.dur * speedMult,
+            repeat: Infinity,
+            delay: g.delay,
+            ease: 'linear',
+          }}
+        />
       ))}
     </div>
   );
@@ -348,6 +289,8 @@ export default function SlingshotGameScreen() {
 
   // ── Refs ──
   const arenaRef = useRef<HTMLDivElement>(null);
+  const shelfRef = useRef<HTMLDivElement>(null);
+  const jarsRowRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const lastPullYBucket = useRef(0);
   const lastAimedJarRef = useRef<number | null>(null);
@@ -355,6 +298,7 @@ export default function SlingshotGameScreen() {
   const animationFrameRef = useRef<number | null>(null);
   const windTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastDrawProgressRef = useRef(0);
+  const [windZone, setWindZone] = useState({ top: 0, height: 0 });
 
   const currentRound = ROUNDS[roundIdx];
 
@@ -371,6 +315,33 @@ export default function SlingshotGameScreen() {
       if (windTimerRef.current) clearInterval(windTimerRef.current);
     };
   }, [phase]);
+
+  // ── Measure wind zone from DOM ──
+  useEffect(() => {
+    function measure() {
+      const arena = arenaRef.current;
+      const shelf = shelfRef.current;
+      const jarsRow = jarsRowRef.current;
+      if (!arena || !shelf || !jarsRow) return;
+
+      const arenaRect = arena.getBoundingClientRect();
+      const shelfRect = shelf.getBoundingClientRect();
+      const jarsRect = jarsRow.getBoundingClientRect();
+
+      // Wind zone = from bottom of jars row to top of shelf line
+      const top = jarsRect.bottom - arenaRect.top;
+      const bottom = shelfRect.top - arenaRect.top;
+      const height = bottom - top;
+
+      if (height > 20) {
+        setWindZone({ top, height });
+      }
+    }
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
 
   // ══════════════════════════════════════════════════════════════════════════════
   // 🎯  POINTER HANDLERS
@@ -839,6 +810,8 @@ export default function SlingshotGameScreen() {
           <PhysicalWind
             wind={wind}
             visible={phase === 'aiming' || phase === 'flying'}
+            zoneTop={windZone.top}
+            zoneHeight={windZone.height}
           />
 
           {/* Wind strength badge */}
@@ -864,64 +837,66 @@ export default function SlingshotGameScreen() {
           </AnimatePresence>
 
           {/* Shelf line — warm tan */}
-          <div className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
+          <div ref={shelfRef} className="absolute bottom-[42%] left-4 right-4 h-[2px] rounded-full" style={{ background: 'rgba(200,170,140,0.3)' }} />
 
           {/* 4 Answer jars with labels - WITH REAL-TIME PREDICTION HIGHLIGHTING */}
-          {currentRound.answers.map((answer, idx) => {
-            const jar = JAR_POSITIONS[idx];
-            const isHit = hitAnswerIdx === idx;
-            const isPredicted = predictedJarIdx === idx;
+          <div ref={jarsRowRef} className="absolute inset-0 pointer-events-none">
+            {currentRound.answers.map((answer, idx) => {
+              const jar = JAR_POSITIONS[idx];
+              const isHit = hitAnswerIdx === idx;
+              const isPredicted = predictedJarIdx === idx;
 
-            return (
-              <div
-                key={idx}
-                className="absolute"
-                style={{ left: `${jar.x}%`, top: `${jar.y}%`, transform: 'translate(-50%, -50%)' }}
-              >
-                <AnimatePresence mode="wait">
-                  {!isHit ? (
-                    <motion.div
-                      key={`jar-${idx}-intact`}
-                      className="flex flex-col items-center gap-2"
-                      animate={{
-                        scale: isPredicted ? 1.15 : 1,
-                        filter: isPredicted 
-                          ? 'drop-shadow(0px 0px 12px rgba(198,124,78,0.4))' 
-                          : 'drop-shadow(0px 4px 8px rgba(0,0,0,0.10))',
-                      }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-                      exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], transition: { duration: 0.4 } }}
-                    >
-                      <span className="text-5xl leading-none" style={{ filter: isPredicted ? 'none' : 'grayscale(0.1)' }}>
-                        🏺
-                      </span>
-                      {/* Label below jar */}
-                      <div
-                        className="px-2 py-1 rounded-lg text-micro font-semibold text-center max-w-[80px] leading-tight transition-colors duration-200"
-                        style={{
-                          background: isPredicted ? '#FFF8F3' : 'rgba(255,255,255,0.9)',
-                          color: isPredicted ? '#C67C4E' : '#7A5C4A',
-                          border: isPredicted ? '1.5px solid #C67C4E' : '1px solid rgba(200,170,140,0.2)',
-                          boxShadow: isPredicted ? '0px 4px 12px rgba(198,124,78,0.2)' : '0px 2px 4px rgba(0,0,0,0.08)',
+              return (
+                <div
+                  key={idx}
+                  className="absolute pointer-events-auto"
+                  style={{ left: `${jar.x}%`, top: `${jar.y}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                  <AnimatePresence mode="wait">
+                    {!isHit ? (
+                      <motion.div
+                        key={`jar-${idx}-intact`}
+                        className="flex flex-col items-center gap-2"
+                        animate={{
+                          scale: isPredicted ? 1.15 : 1,
+                          filter: isPredicted 
+                            ? 'drop-shadow(0px 0px 12px rgba(198,124,78,0.4))' 
+                            : 'drop-shadow(0px 4px 8px rgba(0,0,0,0.10))',
                         }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                        exit={{ scale: [1, 1.3, 0], opacity: [1, 1, 0], transition: { duration: 0.4 } }}
                       >
-                        {answer}
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key={`jar-${idx}-broken`}
-                      initial={{ scale: 2, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 0.5 }}
-                      className="flex flex-col items-center"
-                    >
-                      <span className="text-3xl">💥</span>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            );
-          })}
+                        <span className="text-5xl leading-none" style={{ filter: isPredicted ? 'none' : 'grayscale(0.1)' }}>
+                          🏺
+                        </span>
+                        {/* Label below jar */}
+                        <div
+                          className="px-2 py-1 rounded-lg text-micro font-semibold text-center max-w-[80px] leading-tight transition-colors duration-200"
+                          style={{
+                            background: isPredicted ? '#FFF8F3' : 'rgba(255,255,255,0.9)',
+                            color: isPredicted ? '#C67C4E' : '#7A5C4A',
+                            border: isPredicted ? '1.5px solid #C67C4E' : '1px solid rgba(200,170,140,0.2)',
+                            boxShadow: isPredicted ? '0px 4px 12px rgba(198,124,78,0.2)' : '0px 2px 4px rgba(0,0,0,0.08)',
+                          }}
+                        >
+                          {answer}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key={`jar-${idx}-broken`}
+                        initial={{ scale: 2, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 0.5 }}
+                        className="flex flex-col items-center"
+                      >
+                        <span className="text-3xl">💥</span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
 
           {/* Slingshot */}
           <div className="absolute left-1/2 bottom-[6%] -translate-x-1/2 z-10 scale-125">

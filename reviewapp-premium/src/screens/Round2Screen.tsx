@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import ScreenShell from './ScreenShell';
 import { useNavigation } from './useNavigation';
@@ -33,12 +33,20 @@ export default function Round2Screen() {
   const back = useNavigation((s) => s.back);
   const addSwipeAnswer = useGameStore((s) => s.addSwipeAnswer);
   const [waitFeeling, setWaitFeeling] = useState(33);
+  const lastSegmentRef = useRef<number>(-1);
 
   const getLabelForValue = (v: number) => {
     if (v <= 16) return waitFeelingLabels[0];
     if (v <= 50) return waitFeelingLabels[1];
     if (v <= 83) return waitFeelingLabels[2];
     return waitFeelingLabels[3];
+  };
+
+  const getSegmentForValue = (v: number) => {
+    if (v <= 25) return 0;
+    if (v <= 50) return 1;
+    if (v <= 75) return 2;
+    return 3;
   };
 
   const getCurrentLabel = () => getLabelForValue(waitFeeling);
@@ -111,10 +119,19 @@ export default function Round2Screen() {
             min={0}
             max={100}
             value={waitFeeling}
+            onPointerDown={() => audio.resume()}
             onChange={(e) => {
               const val = Number(e.target.value);
               const prev = waitFeeling;
               setWaitFeeling(val);
+
+              // Track segment crossings for tick sound
+              const currentSegment = getSegmentForValue(val);
+              if (lastSegmentRef.current !== -1 && currentSegment !== lastSegmentRef.current) {
+                audio.sliderTick();
+                haptics.tick();
+              }
+              lastSegmentRef.current = currentSegment;
 
               // Strong ratchet every 2 units
               if (Math.floor(val / 2) !== Math.floor(prev / 2)) {

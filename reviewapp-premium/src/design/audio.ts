@@ -94,6 +94,47 @@ export const audio = {
   tick() {
     tone('triangle', 880, 0.06, 0.12);
   },
+  /** Soft mechanical slider tick — like a notch snapping into place. */
+  sliderTick() {
+    try {
+      const c = ensureCtx();
+      if (!c) return;
+
+      // Layer 1: Sharp transient click
+      const buf = c.createBuffer(1, Math.floor(c.sampleRate * 0.015), c.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        // Sharp attack, very fast exponential decay
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.12));
+      }
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const filter = c.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 1800;
+      filter.Q.value = 2.0;
+      const gain = c.createGain();
+      gain.gain.setValueAtTime(0.35, c.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.015);
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(c.destination);
+      src.start();
+
+      // Layer 2: Tiny low body thud underneath
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(280, c.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, c.currentTime + 0.02);
+      const g2 = c.createGain();
+      g2.gain.setValueAtTime(0.2, c.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.02);
+      osc.connect(g2);
+      g2.connect(c.destination);
+      osc.start();
+      osc.stop(c.currentTime + 0.02);
+    } catch {}
+  },
   /** A primary tap — slightly weightier than tick. */
   tap() {
     tone('triangle', 540, 0.09, 0.18);
@@ -121,8 +162,9 @@ export const audio = {
       filter.Q.value = 3.5;
 
       // Gain envelope — quiet at low pull, louder under tension
+      // INCREASED BY 300% (4x original)
       const gainNode = c.createGain();
-      const baseGain = 0.04 + (progress * 0.12);
+      const baseGain = (0.04 + (progress * 0.12)) * 4;
       gainNode.gain.setValueAtTime(baseGain, c.currentTime);
       gainNode.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
 
@@ -132,6 +174,7 @@ export const audio = {
       src.start();
 
       // Layer 2 — Very subtle low creak underneath (adds body)
+      // INCREASED BY 300% (4x original)
       if (progress > 0.4) {
         const src2 = c.createBufferSource();
         const buf2 = c.createBuffer(1, Math.floor(c.sampleRate * 0.06), c.sampleRate);
@@ -142,7 +185,7 @@ export const audio = {
         f2.type = 'lowpass';
         f2.frequency.value = 120 + (progress * 80);
         const g2 = c.createGain();
-        g2.gain.setValueAtTime(0.06 * progress, c.currentTime);
+        g2.gain.setValueAtTime((0.06 * progress) * 4, c.currentTime);
         g2.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.06);
         src2.connect(f2);
         f2.connect(g2);
@@ -206,88 +249,153 @@ export const audio = {
     tone('sine', 130, 0.12, 0.32);
     noiseBurst(0.09, 0.16, 900);
   },
-  /** Real jar crack sound with multiple physical layers. */
+  /** Dramatic glass explosion — bomb-like impact + realistic glass shatter. */
   jarShatter() {
     try {
       const c = ensureCtx();
       if (!c) return;
 
-      // === IMPACT TRANSIENT (0ms) ===
-      const crackBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.025), c.sampleRate);
+      // === BOMB-LIKE IMPACT BOOM (0ms) — Deep explosive thud ===
+      const boomOsc = c.createOscillator();
+      boomOsc.type = 'sine';
+      boomOsc.frequency.setValueAtTime(80, c.currentTime);
+      boomOsc.frequency.exponentialRampToValueAtTime(30, c.currentTime + 0.25);
+      const boomGain = c.createGain();
+      boomGain.gain.setValueAtTime(1.5, c.currentTime);
+      boomGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
+      boomOsc.connect(boomGain);
+      boomGain.connect(c.destination);
+      boomOsc.start();
+      boomOsc.stop(c.currentTime + 0.26);
+
+      // === INITIAL CRACK TRANSIENT (0ms) — Sharp high-frequency snap ===
+      const crackBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.015), c.sampleRate);
       const crackData = crackBuf.getChannelData(0);
       for (let i = 0; i < crackData.length; i++) crackData[i] = (Math.random() * 2 - 1);
       const crackSrc = c.createBufferSource();
       crackSrc.buffer = crackBuf;
       const crackFilter = c.createBiquadFilter();
       crackFilter.type = 'highpass';
-      crackFilter.frequency.value = 4000;
+      crackFilter.frequency.value = 5000;
       const crackGain = c.createGain();
-      crackGain.gain.setValueAtTime(1.2, c.currentTime);
-      crackGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.025);
+      crackGain.gain.setValueAtTime(1.8, c.currentTime);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.015);
       crackSrc.connect(crackFilter);
       crackFilter.connect(crackGain);
       crackGain.connect(c.destination);
       crackSrc.start();
 
-      // === CERAMIC SCATTER (20ms) ===
+      // === GLASS SHATTER CASCADE (15ms) — Multiple glass pieces breaking ===
       setTimeout(() => {
         try {
-          const scatterBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.18), c.sampleRate);
+          // High-frequency glass tinkle
+          const shatterBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.35), c.sampleRate);
+          const shatterData = shatterBuf.getChannelData(0);
+          for (let i = 0; i < shatterData.length; i++) {
+            shatterData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (shatterData.length * 0.3));
+          }
+          const shatterSrc = c.createBufferSource();
+          shatterSrc.buffer = shatterBuf;
+          const shatterFilter = c.createBiquadFilter();
+          shatterFilter.type = 'bandpass';
+          shatterFilter.frequency.value = 3500;
+          shatterFilter.Q.value = 1.5;
+          const shatterGain = c.createGain();
+          shatterGain.gain.setValueAtTime(1.2, c.currentTime);
+          shatterGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.35);
+          shatterSrc.connect(shatterFilter);
+          shatterFilter.connect(shatterGain);
+          shatterGain.connect(c.destination);
+          shatterSrc.start();
+        } catch {}
+      }, 15);
+
+      // === GLASS SCATTER LAYER 2 (30ms) — Mid-range glass debris ===
+      setTimeout(() => {
+        try {
+          const scatterBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.28), c.sampleRate);
           const scatterData = scatterBuf.getChannelData(0);
-          for (let i = 0; i < scatterData.length; i++) scatterData[i] = (Math.random() * 2 - 1);
+          for (let i = 0; i < scatterData.length; i++) {
+            scatterData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (scatterData.length * 0.25));
+          }
           const scatterSrc = c.createBufferSource();
           scatterSrc.buffer = scatterBuf;
           const scatterFilter = c.createBiquadFilter();
           scatterFilter.type = 'bandpass';
-          scatterFilter.frequency.value = 2200;
-          scatterFilter.Q.value = 0.6;
+          scatterFilter.frequency.value = 2000;
+          scatterFilter.Q.value = 0.8;
           const scatterGain = c.createGain();
-          scatterGain.gain.setValueAtTime(0.55, c.currentTime);
-          scatterGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.18);
+          scatterGain.gain.setValueAtTime(0.9, c.currentTime);
+          scatterGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.28);
           scatterSrc.connect(scatterFilter);
           scatterFilter.connect(scatterGain);
           scatterGain.connect(c.destination);
           scatterSrc.start();
         } catch {}
-      }, 20);
+      }, 30);
 
-      // === BODY THUD (40ms) ===
+      // === EXPLOSIVE AIR BURST (50ms) — Whoosh of displaced air ===
       setTimeout(() => {
         try {
-          const osc = c.createOscillator();
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(160, c.currentTime);
-          osc.frequency.exponentialRampToValueAtTime(60, c.currentTime + 0.15);
-          const g = c.createGain();
-          g.gain.setValueAtTime(0.5, c.currentTime);
-          g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.15);
-          osc.connect(g);
-          g.connect(c.destination);
-          osc.start();
-          osc.stop(c.currentTime + 0.16);
+          const airBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.22), c.sampleRate);
+          const airData = airBuf.getChannelData(0);
+          for (let i = 0; i < airData.length; i++) {
+            airData[i] = (Math.random() * 2 - 1) * Math.exp(-i / (airData.length * 0.4));
+          }
+          const airSrc = c.createBufferSource();
+          airSrc.buffer = airBuf;
+          const airFilter = c.createBiquadFilter();
+          airFilter.type = 'lowpass';
+          airFilter.frequency.value = 800;
+          const airGain = c.createGain();
+          airGain.gain.setValueAtTime(0.7, c.currentTime);
+          airGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.22);
+          airSrc.connect(airFilter);
+          airFilter.connect(airGain);
+          airGain.connect(c.destination);
+          airSrc.start();
         } catch {}
-      }, 40);
+      }, 50);
 
-      // === DUST TAIL (100ms) ===
+      // === GLASS TINKLE TAIL (120ms) — Small pieces settling ===
       setTimeout(() => {
         try {
-          const dustBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.25), c.sampleRate);
-          const dustData = dustBuf.getChannelData(0);
-          for (let i = 0; i < dustData.length; i++) dustData[i] = (Math.random() * 2 - 1);
-          const dustSrc = c.createBufferSource();
-          dustSrc.buffer = dustBuf;
-          const dustFilter = c.createBiquadFilter();
-          dustFilter.type = 'highpass';
-          dustFilter.frequency.value = 3500;
-          const dustGain = c.createGain();
-          dustGain.gain.setValueAtTime(0.15, c.currentTime);
-          dustGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.25);
-          dustSrc.connect(dustFilter);
-          dustFilter.connect(dustGain);
-          dustGain.connect(c.destination);
-          dustSrc.start();
+          const tinkleBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.4), c.sampleRate);
+          const tinkleData = tinkleBuf.getChannelData(0);
+          for (let i = 0; i < tinkleData.length; i++) {
+            // Sparse random hits for individual glass pieces
+            tinkleData[i] = Math.random() > 0.7 ? (Math.random() * 2 - 1) : 0;
+          }
+          const tinkleSrc = c.createBufferSource();
+          tinkleSrc.buffer = tinkleBuf;
+          const tinkleFilter = c.createBiquadFilter();
+          tinkleFilter.type = 'highpass';
+          tinkleFilter.frequency.value = 4000;
+          const tinkleGain = c.createGain();
+          tinkleGain.gain.setValueAtTime(0.4, c.currentTime);
+          tinkleGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.4);
+          tinkleSrc.connect(tinkleFilter);
+          tinkleFilter.connect(tinkleGain);
+          tinkleGain.connect(c.destination);
+          tinkleSrc.start();
         } catch {}
-      }, 100);
+      }, 120);
+
+      // === RESONANT RING (180ms) — Metallic/ceramic resonance ===
+      setTimeout(() => {
+        try {
+          const ringOsc = c.createOscillator();
+          ringOsc.type = 'sine';
+          ringOsc.frequency.value = 1800;
+          const ringGain = c.createGain();
+          ringGain.gain.setValueAtTime(0.3, c.currentTime);
+          ringGain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.35);
+          ringOsc.connect(ringGain);
+          ringGain.connect(c.destination);
+          ringOsc.start();
+          ringOsc.stop(c.currentTime + 0.36);
+        } catch {}
+      }, 180);
     } catch { /* fail silently */ }
   },
   /** Bullseye bell — bright, short, satisfying. */

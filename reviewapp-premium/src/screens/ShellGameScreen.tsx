@@ -227,6 +227,12 @@ export default function ShellGameScreen() {
     if (phase !== 'cup_show') return;
     let alive = true;
 
+    // FIX C: Initialize spring position on mount
+    cupPhysY.set(window.innerHeight + 80);
+    requestAnimationFrame(() => {
+      cupPhysY.set(0);
+    });
+
     (async () => {
       await wait(380); // cups animate in
       if (!alive) return;
@@ -536,34 +542,38 @@ export default function ShellGameScreen() {
                 Pick one — your answer becomes a ball
               </motion.p>
 
-              {/* Answer chips */}
-              <div className="space-y-3">
-                {ANSWERS.map((answer, idx) => (
-                  <motion.button
-                    key={idx}
-                    onClick={() => handleAnswerPick(idx)}
-                    className="w-full flex items-center justify-between px-5 py-4 rounded-2xl cursor-pointer"
-                    style={{
-                      background: '#FFFFFF',
-                      border: '1px solid rgba(200,170,140,0.22)',
-                      boxShadow: '0 1px 4px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.05)',
-                    }}
-                    initial={{ opacity: 0, x: -16 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ ...spring.gentle, delay: 0.14 + idx * 0.06 }}
-                    whileHover={{ y: -2, boxShadow: '0 4px 20px rgba(198,124,78,0.18)', borderColor: 'rgba(198,124,78,0.35)' }}
-                    whileTap={{ scale: 0.97 }}
-                  >
-                    <span className="text-body text-ink font-medium">{answer.label}</span>
-                    {/* Ball indicator */}
-                    <motion.div
-                      className="flex-shrink-0 ml-3"
-                      whileHover={{ scale: 1.15 }}
+              {/* Answer balls — horizontal row */}
+              <div className="flex flex-row items-start justify-center gap-6 px-4 mt-8">
+                {ANSWERS.map((answer, idx) => {
+                  const isSelected = selectedAnswer === idx;
+                  return (
+                    <motion.button
+                      key={idx}
+                      onClick={() => handleAnswerPick(idx)}
+                      className="flex flex-col items-center gap-3 flex-1 max-w-[120px]"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ ...spring.gentle, delay: 0.14 + idx * 0.06 }}
                     >
-                      <BallSVG size={28} colors={answer.ballColor} />
-                    </motion.div>
-                  </motion.button>
-                ))}
+                      {/* Ball */}
+                      <motion.div
+                        whileTap={{ scale: 0.88 }}
+                        whileHover={{ scale: 1.08 }}
+                        className="w-20 h-20 rounded-full"
+                        style={{
+                          background: `radial-gradient(circle at 35% 28%, ${answer.ballColor[0]}, ${answer.ballColor[1]})`,
+                          boxShadow: isSelected
+                            ? '0 8px 24px rgba(0,0,0,0.15), inset 0 -4px 8px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.25), 0 0 0 3px rgba(198,124,78,0.5)'
+                            : '0 8px 24px rgba(0,0,0,0.15), inset 0 -4px 8px rgba(0,0,0,0.12), inset 0 4px 8px rgba(255,255,255,0.25)',
+                        }}
+                      />
+                      {/* Label */}
+                      <span className="text-center text-sm font-medium text-ink leading-tight">
+                        {answer.label}
+                      </span>
+                    </motion.button>
+                  );
+                })}
               </div>
             </motion.div>
           )}
@@ -644,14 +654,15 @@ export default function ShellGameScreen() {
         </AnimatePresence>
 
         {/* ─── Phases 4 & 5: Cup game ─────────────────────────────────────── */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {isCupPhase && (
             <motion.div
               key="cups"
               className="flex-1 flex flex-col justify-between py-6"
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...spring.gentle }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
             >
               {/* Header */}
               <motion.div
@@ -744,9 +755,9 @@ export default function ShellGameScreen() {
                         marginLeft: -38,
                         cursor: isPickable ? 'pointer' : 'default',
                       }}
-                      initial={{ y: 80, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ ...spring.gentle, delay: 0.05 + cupId * 0.08 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.05 + cupId * 0.08 }}
                       onHoverStart={() => isPickable && setHoveredSlot(slot)}
                       onHoverEnd={() => setHoveredSlot(null)}
                       onClick={() => isPickable && handleCupPick(slot)}

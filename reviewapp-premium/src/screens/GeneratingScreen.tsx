@@ -122,6 +122,11 @@ export default function GeneratingScreen() {
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
 
+      // Copy to clipboard before navigation
+      navigator.clipboard.writeText(reviewText).catch(() => {
+        console.log('📋 [GeneratingScreen] Clipboard copy failed (expected in some contexts)');
+      });
+
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
       console.log('✅ [GeneratingScreen] Navigation complete');
@@ -138,6 +143,11 @@ export default function GeneratingScreen() {
 
       console.log('🧹 [GeneratingScreen] Resetting transcript store');
       resetTranscript();
+
+      // Copy to clipboard before navigation
+      navigator.clipboard.writeText(fallbackText).catch(() => {
+        console.log('📋 [GeneratingScreen] Clipboard copy failed (expected in some contexts)');
+      });
 
       console.log('🚀 [GeneratingScreen] Navigating to: review');
       go('review');
@@ -255,7 +265,16 @@ export default function GeneratingScreen() {
     })
       .then((r) => r.json())
       .then((data) => {
-        setReview(data.review || '');
+        const reviewText = data.review || '';
+        setReview(reviewText);
+        
+        // Copy to clipboard before navigation
+        if (reviewText) {
+          navigator.clipboard.writeText(reviewText).catch(() => {
+            console.log('📋 [GeneratingScreen] Clipboard copy failed');
+          });
+        }
+        
         go('review');
       })
       .catch(() => {

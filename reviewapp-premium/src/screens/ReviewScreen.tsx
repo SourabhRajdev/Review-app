@@ -83,9 +83,9 @@ export default function ReviewScreen() {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
-  const [autoCopied, setAutoCopied] = useState(false);
+  const [showCopied, setShowCopied] = useState(true); // Show immediately on mount
   const [showConfetti, setShowConfetti] = useState(true);
-  const autoCopyDone = useRef(false);
+  const [userEdited, setUserEdited] = useState(false);
 
   const displayText = text?.trim() ? text : 'Your review will appear here.';
 
@@ -99,33 +99,23 @@ export default function ReviewScreen() {
     return () => clearTimeout(t);
   }, []);
 
-  // Auto-copy as soon as a real review is available.
-  // 400ms delay: lets the page animation settle.
+  // Dismiss "Copied!" indicator after 2.5s
   useEffect(() => {
-    if (autoCopyDone.current) return;
-    const t = text?.trim();
-    if (!t) return;
-    autoCopyDone.current = true;
-    const timer = setTimeout(() => {
-      copyToClipboard(t).then(() => {
-        setAutoCopied(true);
-        audio.bullseye();
-        haptics.impact();
-        setTimeout(() => setAutoCopied(false), 3000);
-      }).catch(() => {
-        // Clipboard blocked — silently ignore
-      });
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [text]);
+    const t = setTimeout(() => setShowCopied(false), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   async function handleCopy() {
     const t = text?.trim() ? text : displayText;
     await copyToClipboard(t);
+    setShowCopied(true);
     setCopied(true);
     audio.bullseye();
     haptics.impact();
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      setShowCopied(false);
+      setCopied(false);
+    }, 2000);
   }
 
   function handleEditStart() {
@@ -133,6 +123,7 @@ export default function ReviewScreen() {
     haptics.press();
     setEditValue(text || '');
     setIsEditing(true);
+    setUserEdited(true); // Mark that user has edited
   }
 
   async function handleEditSave() {
@@ -141,10 +132,14 @@ export default function ReviewScreen() {
     updateText(editValue);
     setIsEditing(false);
     await copyToClipboard(editValue);
+    setShowCopied(true);
     setCopied(true);
     audio.bullseye();
     haptics.impact();
-    setTimeout(() => setCopied(false), 2500);
+    setTimeout(() => {
+      setShowCopied(false);
+      setCopied(false);
+    }, 2500);
   }
 
   return (
@@ -194,7 +189,7 @@ export default function ReviewScreen() {
 
         {/* Auto-copy indicator */}
         <AnimatePresence mode="wait">
-          {autoCopied ? (
+          {showCopied ? (
             <motion.p
               key="copied"
               className="text-body-sm font-medium"
@@ -204,7 +199,7 @@ export default function ReviewScreen() {
               exit={{ opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 24 }}
             >
-              ✓ Copied to clipboard
+              ✓ Review copied to clipboard
             </motion.p>
           ) : (
             <motion.p
@@ -278,7 +273,7 @@ export default function ReviewScreen() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5, duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       >
-        {/* Copy CTA — coffee gradient */}
+        {/* Copy CTA — coffee gradient — always visible */}
         <PrimaryButton onClick={handleCopy}>
           {copied ? (
             <span className="flex items-center justify-center gap-2">
@@ -288,7 +283,7 @@ export default function ReviewScreen() {
               Copied!
             </span>
           ) : (
-            'Copy Review'
+            userEdited ? 'Copy Edited Review' : 'Copy Review'
           )}
         </PrimaryButton>
 

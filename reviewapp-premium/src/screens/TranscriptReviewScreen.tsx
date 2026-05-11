@@ -66,6 +66,12 @@ export default function TranscriptReviewScreen() {
     audio.tap();
     haptics.press();
     setReview(textToUse);
+    
+    // Copy to clipboard DIRECTLY in user gesture — only way it works
+    navigator.clipboard.writeText(textToUse).catch(() => {
+      // Silently fail if clipboard blocked
+    });
+    
     go('review');
   }
 
