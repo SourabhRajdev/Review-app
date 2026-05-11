@@ -43,88 +43,132 @@ interface Wind {
 }
 
 function PhysicalWind({ wind, visible }: { wind: Wind; visible: boolean }) {
-  const gustCount = { calm: 0, light: 8, medium: 14, strong: 22 }[wind.strength];
-  
-  // Memoize gusts to avoid chaotic re-renders
-  const gusts = useMemo(() => {
-    return Array.from({ length: 22 }).map((_, i) => ({
-      id: i,
-      y: 15 + Math.random() * 65, // Spread across the 15%-80% valley
-      width: 40 + Math.random() * 120,
-      thickness: 1.5 + Math.random() * 2.5,
-      delay: Math.random() * 2,
-      duration: 1.5 + Math.random() * 1.5,
-      curve: (Math.random() - 0.5) * 40, // Organic sway
-    }));
-  }, []);
+  // Deterministic wind path definitions — organic curves, NOT straight lines
+  // Each path is a bezier curve that swoops and curls like real wind illustration
+  const windPaths = useMemo(() => [
+    // Long sweeping S-curve
+    { id: 0, d: "M-20,0 C20,-25 60,25 100,0 S160,-20 200,5",        y: '18%', scale: 1.1,   delay: 0,    dur: 2.2 },
+    // Short curl with spiral end
+    { id: 1, d: "M-10,0 C15,-18 40,18 70,0 C85,-10 90,-8 88,-2",    y: '28%', scale: 0.85,  delay: 0.4,  dur: 1.8 },
+    // Long gentle wave
+    { id: 2, d: "M-30,0 C10,20 50,-20 90,0 C120,15 150,-10 200,0",  y: '38%', scale: 1.2,   delay: 0.8,  dur: 2.5 },
+    // Medium swoosh upward
+    { id: 3, d: "M-15,10 C20,-15 55,5 80,-10 C100,-20 115,-15 120,-5", y: '50%', scale: 0.9, delay: 0.2, dur: 1.9 },
+    // Tight curl loop
+    { id: 4, d: "M-10,0 C10,-20 30,20 50,0 C60,-10 65,-8 62,-2",    y: '60%', scale: 0.75,  delay: 1.0,  dur: 1.6 },
+    // Wide sweeping arc
+    { id: 5, d: "M-40,5 C20,-30 80,30 140,0 C170,-15 190,-5 210,8", y: '70%', scale: 1.0,   delay: 0.6,  dur: 2.8 },
+    // Short sharp gust
+    { id: 6, d: "M-5,0 C10,-12 25,12 45,0 C52,-6 55,-4 53,-1",      y: '22%', scale: 0.7,   delay: 1.4,  dur: 1.4 },
+    // Long double wave
+    { id: 7, d: "M-30,0 C0,22 40,-22 80,0 C110,18 145,-18 180,0",   y: '45%', scale: 1.15,  delay: 0.9,  dur: 2.3 },
+    // Spiral-ish curl at end
+    { id: 8, d: "M-20,8 C15,-20 50,5 75,-8 C90,-16 95,-12 92,-5 C90,-1 87,2 88,5", y: '58%', scale: 0.95, delay: 1.7, dur: 2.0 },
+    // Gentle high arc
+    { id: 9, d: "M-25,0 C30,-35 70,5 120,-10 C150,-18 175,-5 200,0", y: '32%', scale: 1.05, delay: 0.3, dur: 2.6 },
+  ], []);
 
-  if (!visible || wind.strength === 'calm') return null;
+  const count = { calm: 0, light: 3, medium: 6, strong: 10 }[wind.strength] ?? 0;
+  const speedMult = { calm: 1, light: 1.0, medium: 0.65, strong: 0.38 }[wind.strength] ?? 1;
+  const isLeft = wind.direction === 'left';
 
-  // Speed multiplier based on strength
-  const speedMult = { calm: 1, light: 1.4, medium: 0.9, strong: 0.5 }[wind.strength]; // duration is inverted
+  if (!visible || wind.strength === 'calm' || count === 0) return null;
+
+  // Base stroke color — warm ink that matches the app palette
+  const strokeColor = "rgba(80, 60, 40, 0.55)";
+  const strokeColorLight = "rgba(80, 60, 40, 0.30)";
 
   return (
-    <div 
-      className="absolute inset-0 pointer-events-none overflow-hidden" 
-      style={{ zIndex: 5, opacity: 0.7 }}
+    <div
+      className="absolute pointer-events-none overflow-hidden"
+      style={{
+        top: '28%',
+        bottom: '30%',
+        left: 0,
+        right: 0,
+        zIndex: 6,
+      }}
     >
-      <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <AnimatePresence>
-          {gusts.slice(0, gustCount).map((g) => {
-            const isLeft = wind.direction === 'left';
-            const startX = isLeft ? 120 : -20;
-            const endX = isLeft ? -20 : 120;
+      {windPaths.slice(0, count).map((p) => {
+        // Travel distance: paths move fully off screen in wind direction
+        const travelFrom = isLeft ? '105vw' : '-220px';
+        const travelTo   = isLeft ? '-220px' : '105vw';
 
-            return (
-              <motion.path
-                key={`gust-${g.id}`}
-                d={`M ${startX} ${g.y} Q ${startX + (endX - startX) / 2} ${g.y + g.curve} ${endX} ${g.y}`}
-                fill="none"
-                stroke="rgba(198, 124, 78, 0.25)"
-                strokeWidth={g.thickness}
-                strokeLinecap="round"
-                initial={{ pathLength: 0, opacity: 0, x: 0 }}
-                animate={{ 
-                  pathLength: [0, 1, 0],
-                  opacity: [0, 0.8, 0],
-                  x: isLeft ? [-10, 10] : [10, -10] 
-                }}
-                transition={{
-                  duration: g.duration * speedMult,
-                  repeat: Infinity,
-                  delay: g.delay,
-                  ease: "linear"
-                }}
-                style={{ filter: 'blur(1px)' }}
-              />
-            );
-          })}
-        </AnimatePresence>
-      </svg>
-      
-      {/* Texture Layer: Drifting "Dust/Seed" particles */}
-      <div className="absolute inset-0">
-        {Array.from({ length: gustCount / 2 }).map((_, i) => (
+        return (
           <motion.div
-            key={`dust-${i}`}
-            className="absolute w-1 h-1 rounded-full bg-primary/20"
-            initial={{ 
-              x: wind.direction === 'left' ? '110%' : '-10%',
-              y: `${20 + Math.random() * 60}%` 
+            key={p.id}
+            className="absolute pointer-events-none"
+            style={{
+              top: p.y,
+              left: 0,
+              width: '220px',
+              height: '60px',
+              // Flip entire element for left wind direction
+              scaleX: isLeft ? -1 : 1,
             }}
-            animate={{ 
-              x: wind.direction === 'left' ? '-10%' : '110%',
-              y: [`${20 + Math.random() * 60}%`, `${25 + Math.random() * 55}%`]
-            }}
+            initial={{ x: travelFrom }}
+            animate={{ x: travelTo }}
             transition={{
-              duration: (2 + Math.random() * 2) * speedMult,
+              duration: p.dur * speedMult,
               repeat: Infinity,
-              delay: Math.random() * 2,
-              ease: "linear"
+              delay: p.delay,
+              ease: 'linear',
             }}
-          />
-        ))}
-      </div>
+          >
+            <svg
+              width="220"
+              height="60"
+              viewBox="-50 -35 270 70"
+              overflow="visible"
+              style={{ transform: `scale(${p.scale})`, transformOrigin: 'left center' }}
+            >
+              {/* Shadow/depth stroke — slightly thicker, lighter */}
+              <path
+                d={p.d}
+                fill="none"
+                stroke={strokeColorLight}
+                strokeWidth="3.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* Main wind stroke */}
+              <path
+                d={p.d}
+                fill="none"
+                stroke={strokeColor}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </motion.div>
+        );
+      })}
+
+      {/* Spiral puffs for strong wind */}
+      {wind.strength === 'strong' && [
+        { id: 'p1', top: '15%', delay: 0.5 },
+        { id: 'p2', top: '72%', delay: 1.2 },
+      ].map((puff) => (
+        <motion.div
+          key={puff.id}
+          className="absolute pointer-events-none"
+          style={{ top: puff.top, width: 48, height: 48 }}
+          initial={{ x: isLeft ? '105vw' : '-60px', opacity: 0 }}
+          animate={{ x: isLeft ? '-60px' : '105vw', opacity: [0, 0.7, 0.7, 0] }}
+          transition={{ duration: 1.8 * speedMult, repeat: Infinity, delay: puff.delay, ease: 'linear' }}
+        >
+          <svg width="48" height="48" viewBox="0 0 48 48">
+            <path
+              d="M24,24 C24,18 30,18 30,24 C30,30 18,32 18,24 C18,14 32,12 34,22"
+              fill="none"
+              stroke={strokeColor}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </motion.div>
+      ))}
     </div>
   );
 }
