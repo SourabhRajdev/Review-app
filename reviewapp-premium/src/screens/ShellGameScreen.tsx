@@ -92,45 +92,78 @@ function BallSVG({ size = 44, colors }: { size?: number; colors: readonly [strin
   );
 }
 
-// ── Cup SVG ───────────────────────────────────────────────────────────────────
+// ── Cup SVG — Red Solo Cup (Beer Pong Style) ─────────────────────────────────
 
 function CupSVG({ highlighted, lifted }: { highlighted: boolean; lifted?: boolean }) {
+  const cupId = highlighted ? 'redHL' : 'redBase';
   return (
-    <svg width="76" height="72" viewBox="0 0 76 72" style={{ display: 'block', overflow: 'visible' }}>
+    <svg width="87" height="83" viewBox="0 0 87 83" style={{ display: 'block', overflow: 'visible' }}>
       <defs>
-        <radialGradient id={highlighted ? 'cupHL' : 'cupBase'} cx="32%" cy="28%" r="68%">
-          <stop offset="0%"   stopColor={highlighted ? '#F0D5B8' : '#EDD5BB'} />
-          <stop offset="100%" stopColor={highlighted ? '#C67C4E' : '#A05A32'} />
-        </radialGradient>
-        <filter id={`cs-${highlighted ? 'hl' : 'n'}${lifted ? 'l' : ''}`}>
-          <feDropShadow dx="0" dy={lifted ? 12 : 5}
-            stdDeviation={lifted ? 8 : 4}
-            floodColor="rgba(0,0,0,0.22)" />
+        {/* Red plastic gradient */}
+        <linearGradient id={cupId} x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%"   stopColor={highlighted ? '#FF4444' : '#E63946'} />
+          <stop offset="50%"  stopColor={highlighted ? '#DC143C' : '#C1121F'} />
+          <stop offset="100%" stopColor={highlighted ? '#B22222' : '#9D0208'} />
+        </linearGradient>
+        
+        {/* Shadow filter */}
+        <filter id={`shadow-${highlighted ? 'hl' : 'n'}${lifted ? 'l' : ''}`}>
+          <feDropShadow dx="0" dy={lifted ? 16 : 7}
+            stdDeviation={lifted ? 10 : 6}
+            floodColor="rgba(0,0,0,0.3)" />
         </filter>
       </defs>
 
-      {/* Dome */}
+      {/* Main cup body - tapered trapezoid (15% taller and wider) */}
       <path
-        d="M10,50 Q8,14 38,8 Q68,14 66,50 Z"
-        fill={`url(#${highlighted ? 'cupHL' : 'cupBase'})`}
-        filter={`url(#cs-${highlighted ? 'hl' : 'n'}${lifted ? 'l' : ''})`}
-        stroke={highlighted ? 'rgba(198,124,78,0.6)' : 'rgba(200,170,140,0.3)'}
+        d="M 23,11 L 16,67 L 71,67 L 64,11 Z"
+        fill={`url(#${cupId})`}
+        filter={`url(#shadow-${highlighted ? 'hl' : 'n'}${lifted ? 'l' : ''})`}
+        stroke={highlighted ? '#FF6B6B' : 'rgba(0,0,0,0.15)'}
         strokeWidth={highlighted ? 2 : 1}
       />
-      {/* Base */}
-      <rect x="10" y="50" width="56" height="13" rx="6.5"
-        fill={highlighted ? '#C67C4E' : '#A05A32'}
-        stroke={highlighted ? 'rgba(198,124,78,0.4)' : 'none'} strokeWidth="1"
+      
+      {/* Top rim - white ring */}
+      <ellipse cx="43.5" cy="11" rx="20.5" ry="4"
+        fill="#FFFFFF"
+        opacity="0.9"
       />
-      {/* Foot */}
-      <rect x="18" y="61" width="40" height="9" rx="4.5"
-        fill={highlighted ? '#A05A32' : '#8B4513'}
-      />
-      {/* Shine */}
+      
+      {/* Middle ring detail (classic solo cup rings) */}
       <path
-        d="M19,38 Q22,20 36,16"
-        stroke="rgba(255,255,255,0.38)" strokeWidth="2.5"
-        fill="none" strokeLinecap="round"
+        d="M 20,32 Q 43.5,30 67,32"
+        stroke="rgba(255,255,255,0.15)"
+        strokeWidth="1.5"
+        fill="none"
+      />
+      <path
+        d="M 19,44 Q 43.5,41 68,44"
+        stroke="rgba(255,255,255,0.12)"
+        strokeWidth="1.5"
+        fill="none"
+      />
+      
+      {/* Bottom base */}
+      <ellipse cx="43.5" cy="67" rx="27.5" ry="4.5"
+        fill={highlighted ? '#9D0208' : '#660708'}
+      />
+      
+      {/* Highlight shine on left side */}
+      <path
+        d="M 25,17 Q 28,14 30,11 L 30,58 Q 28,55 25,52 Z"
+        fill="rgba(255,255,255,0.18)"
+        opacity={highlighted ? 1 : 0.7}
+      />
+      
+      {/* Specular highlight */}
+      <ellipse cx="32" cy="21" rx="7" ry="11.5"
+        fill="rgba(255,255,255,0.25)"
+        transform="rotate(-15, 32, 21)"
+      />
+      
+      {/* Inner shadow at top */}
+      <ellipse cx="43.5" cy="11" rx="18.5" ry="3"
+        fill="rgba(0,0,0,0.2)"
       />
     </svg>
   );
